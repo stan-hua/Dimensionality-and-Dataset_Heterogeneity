@@ -4,9 +4,8 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
-from factor_analyzer.factor_analyzer import calculate_kmo
+from factor_analyzer.factor_analyzer import calculate_kmo    
 
-    
 class pca:
     'Principal Component Analysis Object'
     def __init__(self, df):
@@ -49,13 +48,18 @@ class pca:
 
         """
         if self.model!=None:
-            x_axis=np.fromiter(range(1,self.model.n_components_+1))
+            a=self.model.explained_variance_ratio_>0.01
+            num_useful=len(a[a])
             
-            plt.plot(x_axis, self.model.explained_variance_ratio)
-            plt.xlabels("PCA Components")
-            plt.ylabels("Percent Explained Variance")
-            plt.ticks(np.fromiter(range(self.model.n_components_)))
-            plt.show(x_axis)
+            #x_axis=np.fromiter(range(1,self.model.n_components_+1), dtype="int64")
+            x_axis=np.fromiter(range(1,num_useful+1), dtype="int64")
+            
+            plt.plot(x_axis, self.model.explained_variance_ratio_[:num_useful])
+            plt.xlabel("PCA Components")
+            plt.ylabel("Percent Explained Variance")
+            #plt.xticks(np.fromiter(range(self.model.n_components_), dtype="int64"))
+            plt.xticks(np.fromiter(range(1,num_useful), dtype="int64"))
+            plt.show()
         else:
             raise "Method compute() has not been passed!"
     
@@ -78,11 +82,52 @@ class pca:
         else:
             print("Assumptions are valid!\n p-value: %d \n KMO value: %d" % p_value,kmo_model)
 
+#%% Test Code
+import os
+from scipy.stats import bartlett
+import pingouin
+
+absolute_dir="/Users/Stanley/Desktop/Tyrrell Lab/ROP Project/PCA-Clustering-Project/"
+data_dir="data/"
+boneage_or_psp="psp_plates"
+
+paths=[]
+for root, dirs, files in os.walk(absolute_dir+data_dir+boneage_or_psp, topdown=False):
+   for name in files:
+      paths.append(os.path.join(root, name))
+
+col_indices=[str(i) for i in range(512)]
+
+for i in range(len(paths)):
+    df=pd.read_csv(paths[i], index_col=False)
+    try:
+        df=df.drop("Unnamed: 0", axis=1)
+    except:
+        pass
+    
+    
+    df_data=df.loc[:,col_indices]
+    pca_model=pca(df_data)
+    #pca_model.validate_assumptions()
+    #pingouin.homoscedasticity(df_data,method="bartlett")
+    pca_model.compute()
+    pca_model.graph()
 
 
-#PCA
-df=pd.read_csv()
-pca_model=pca(df)
-pca_model.validate_assumptions()
-pca_model.compute()
-pca_model.graph()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
