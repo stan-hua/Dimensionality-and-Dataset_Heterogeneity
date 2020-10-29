@@ -160,8 +160,10 @@ def cluster_kmeans(train_data, test_data, num_clusters=4):
     get_cluster_distance(kmeans_model.cluster_centers_)
 
     # Fuzzy K Means
-    # fuzzy_model=FuzzyKMeans(k=num_clusters,m=1.5).fit(train_data)
-    # cluster_prediction=pairwise_distances_argmin(test_data,fuzzy_model.cluster_centers_)
+# =============================================================================
+#     fuzzy_model=FuzzyKMeans(k=num_clusters,m=2).fit(train_data)
+#     cluster_prediction=pairwise_distances_argmin(test_data,fuzzy_model.cluster_centers_)
+# =============================================================================
     
     return cluster_prediction
 
