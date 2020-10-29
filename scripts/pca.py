@@ -1,12 +1,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from sklearn.metrics import accuracy_score
+from sklearn.metrics.pairwise import euclidean_distances
+
+from sklearn_extensions.fuzzy_kmeans import FuzzyKMeans
+from sklearn.metrics import pairwise_distances_argmin
+
 from factor_analyzer.factor_analyzer import calculate_kmo    
 from scipy.stats import bartlett
+
 import scipy
 import pingouin
 import os
@@ -15,7 +22,7 @@ import os
 absolute_dir="/Users/Stanley/Desktop/Tyrrell Lab/ROP Project/PCA-Clustering-Project/"
 data_dir="data/"
 
-#Dataset
+#Dataset ("boneage" or "psp_plates")
 boneage_or_psp="psp_plates"
 
 #Get csv file paths
@@ -24,14 +31,19 @@ for root, dirs, files in os.walk(absolute_dir+data_dir+boneage_or_psp, topdown=F
    for name in files:
       paths.append(os.path.join(root, name))
 
-#%%
+#%% Defining PCA class
 class pca:
     'Principal Component Analysis Object'
+    
+    global chosen_PCs
+    
     def __init__(self, df):
         self.df=df
         self.pcs_df=None
         self.model=None
-        self.num_graphed=None
+        self.max_pcs=None
+        
+        
     def compute(self):
         """
         1) Standardizes data. 
@@ -51,8 +63,9 @@ class pca:
         #Save instance and principal components
         self.pcs_df=pd.DataFrame(principalComponents)
         self.model=pca_model
+        self.max_pcs=len(self.pcs_df.columns)-1
     
-    def graph(self):
+    def graph(self, chosen_pcs=None):
         """
         Plots explained variance ratio versus each PCA component.
 
@@ -66,22 +79,31 @@ class pca:
         None.
 
         """
+        
         if self.model!=None:
-            a=self.model.explained_variance_ratio_>0.01
-            num_useful=len(a[a])
+            # a=self.model.explained_variance_ratio_>0
+            # num_useful=len(a[a])
+            
+            if chosen_pcs==None or len(chosen_pcs)>20:
+                chosen_pcs=[int(self.max_pcs/i) for i in range(15,0,-2)]
+
+            chosen_pcs_unique=np.unique(chosen_pcs)
             
             #Cumulative
+            variance_explained=pd.Series(self.model.explained_variance_ratio_[:]).cumsum()
             
-            #x_axis=np.fromiter(range(1,self.model.n_components_+1), dtype="int64")
-            x_axis=np.fromiter(range(1,num_useful+1), dtype="int64")
+            y_var=variance_explained.iloc[chosen_pcs_unique].values
+            #x_axis=np.fromiter(range(1,num_useful+1), dtype="int64")
             
-            plt.plot(x_axis, self.model.explained_variance_ratio_[:num_useful])
-            plt.xlabel("Num of Principal Components")
+            plt.plot(chosen_pcs_unique, y_var,'r')
+            plt.xlabel("Number of Principal Components")
             plt.ylabel("Percent Explained Variance")
-            #plt.xticks(np.fromiter(range(self.model.n_components_), dtype="int64"))
-            plt.xticks(np.fromiter(range(1,num_useful), dtype="int64"))
+            #plt.xticks(np.fromiter(range(1,num_useful), dtype="int64"))
+            plt.xticks(chosen_pcs_unique)
+            plt.ylim((0, 1))
             plt.show()
-            self.num_graphed=num_useful
+            
+            return (chosen_pcs_unique, y_var)
         else:
             raise "Method compute() has not been passed!"
     
@@ -100,14 +122,48 @@ class pca:
         #Printout
         if p_value > 0.05 and kmo_model < 0.6:
             print("Fails both tests!\n p-value: %d \n KMO value: %d" % (p_value,kmo_model))
+            result="Invalid"
         elif p_value > 0.05:
             print("Fails Bartlett's Test of Sphericity \n p-value: %d" % p_value)
+            result="Invalid"
         elif kmo_model < 0.6:
             print("Fails the Kaiser-Meyer-Olkin Test \n KMO Value: %d" % kmo_model)
+            result="Invalid"
         elif p_value < 0.05 and kmo_model > 0.6:
             print("Assumptions are valid!\n p-value: %d \n KMO value: %d" % (p_value,kmo_model))
+            result="Valid"
         else:
             print("NaN Calculated!")
+            result="Invalid"
+        
+        return result
+        
+#%% Display Max-Min Distance
+def get_cluster_distance(cluster_centers):
+    #Get distances
+    dists = euclidean_distances(cluster_centers)
+    
+    #Compute Max Distance, Average Distance and Minimum Distance
+    tri_dists = dists[np.triu_indices(4,1)]
+    max_dist, min_dist = tri_dists.max(), tri_dists.min()
+    
+    #Raise Error if Cluster Distance is 0
+    max_min=max_dist-min_dist
+    if round(max_min)==0:
+        raise "Max Distance - Min Distance = 0"
+    
+
+#%% Clustering Models
+def cluster_kmeans(train_data, test_data, num_clusters=4):
+    kmeans_model=KMeans(n_clusters=num_clusters, random_state=0).fit(train_data)    
+    cluster_prediction=kmeans_model.predict(test_data)    
+    get_cluster_distance(kmeans_model.cluster_centers_)
+
+    # Fuzzy K Means
+    # fuzzy_model=FuzzyKMeans(k=num_clusters,m=1.5).fit(train_data)
+    # cluster_prediction=pairwise_distances_argmin(test_data,fuzzy_model.cluster_centers_)
+    
+    return cluster_prediction
 
 #%% Test Code
             
@@ -120,54 +176,126 @@ for i in range(len(paths)):
     except:
         pass
     
-    df_train=df[df.phase=="train"]
-    df_val=df[df.phase=="val"]
     
     #GET TRAINING DATA & VAL & TEST DATA
-    df_data=df.loc[:,col_indices]
+    df_train=df[df.phase=="train"]
+    df_test=df[df.phase=="val"]
+
+
+    pca_train=pca(df.loc[:,col_indices])
+    
+    #Check if Assumptions are valid
+    if pca_train.validate_assumptions()=="Valid":
+        pca_train.compute()
         
-    pca_model=pca(df_data)
-    pca_model.validate_assumptions()
-    pca_model.compute()
-    pca_model.graph()
-    
-    num_useful=pca_model.num_graphed
-    
-    cv=[]
-    num_pc=[]
-    for g in range(1, num_useful):
-        #Fit Training, Predict Test
-        kmeans=KMeans(n_clusters=4, random_state=0).fit_predict(pca_model.pcs_df[:g])
+        #CHANGE THIS
+        chosen_pcs=[1,2,3,5,10,15,20,30,50,80]
+        #chosen_pcs=[h for h in range(1, pca_train.max_pcs)]
+        cv=[]
+        num_pc=[]
+        cluster_accuracies=[]
+        #range(1, pca_train.max_pcs)
+        for g in chosen_pcs:
+            #Get train and test data
+            cluster_train=pca_train.pcs_df.loc[:df_train.index[-1]+1,:g]
+            cluster_val=pca_train.pcs_df.loc[df_train.index[-1]+1:df_test.index[-1]+1,:g]
+            
+            #Fit Training, Predict Test
+            cluster_prediction=cluster_kmeans(cluster_train,cluster_val)
+
+# Prints out number of observations in each of four clusters            
+# =============================================================================
+#             print(str(g) + " Principal Components")
+#             print(pd.Series(kmeans).value_counts())
+#             print()
+# =============================================================================
         
-        print(str(len(pca_model.pcs_df.columns)-g) + " Principal Components")
-        print(pd.Series(kmeans).value_counts())
-        print()
-    
-        cluster_num=pd.Series(kmeans).value_counts().index.to_list()
-        values=pd.Series(kmeans).value_counts().values
-        # plt.bar(cluster_num, values, align="edge")
-        # plt.tick_params(
-        #     axis='x',          # changes apply to the x-axis
-        #     which='both',      # both major and minor ticks are affected
-        #     bottom=False,      # ticks along the bottom edge are off
-        #     top=False,         # ticks along the top edge are off
-        #     labelbottom=False)
-        # plt.title("KMeans with " + str(len(pca_model.pcs_df.columns)-g) + " Principal Components")
-        # plt.show()
+            cluster_num=pd.Series(cluster_prediction).value_counts().index.to_list()
+            values=pd.Series(cluster_prediction).value_counts().values
+            
+# Bar plots showing cluster sizes
+# =============================================================================
+#             plt.bar(cluster_num, values, align="edge")
+#             plt.tick_params(
+#                 axis='x',          
+#                 which='both',      
+#                 bottom=False,      
+#                 top=False,         
+#                 labelbottom=False)
+#             plt.title("KMeans with " + str(len(pca_test.pcs_df.columns)-g) + " Principal Components")
+#             plt.show()
+# =============================================================================
+
+            #Get cluster test accuracies
+            df_test["cluster"]=cluster_prediction
+            df_test["prediction_bool"]=df_test.predictions==df_test.labels
+            df_cluster_accuracies=df_test.groupby(by=["cluster"]).mean()["prediction_bool"]
+            
+            accuracy_values=[]
+            for k in range(4):
+                try:
+                    accuracy_values.append(df_cluster_accuracies[k])
+                except:
+                    accuracy_values.append(0)
+            
+            #Get and append Coefficient of Variation
+            cv.append(scipy.stats.variation(values))
+            #Append PC number
+            num_pc.append(g)
+            #Append cluster testing accuracies
+            cluster_accuracies.append(accuracy_values)
+            
+            
+        #CREATING FIGURE:
+        fig = plt.figure()
+        ax1 = fig.add_subplot(221)
+        ax2 = fig.add_subplot(222)
+        ax3 = fig.add_subplot(223)
+        plt.tight_layout()
+        fig.suptitle(paths[i].replace(absolute_dir+data_dir,""),y=1.05)
         
-        cv.append(scipy.stats.variation(values))
-        num_pc.append(len(pca_model.pcs_df.columns)-g)
-    
-    plt.plot(num_pc, cv)
-    plt.xlabel("Num of Principal Components")
-    plt.ylabel("Coefficient of Variation")
-    plt.title(paths[i].replace(absolute_dir+data_dir,""))
-    plt.ylim((0, 0.5))
-    plt.show()
+        #FIGURE: CV vs. # of Principal Components
+        ax1.plot(num_pc, cv, color='#4daf4a', marker="D", markersize=4)
+        ax1.set_ylabel('Coefficient of Variation')
+        ax1.set_ylim((0, 1))
+        ax1.tick_params(axis='x', labelsize=7)
+        
+        #Preprocessing for use in scatter plot
+        num_pcs_2=np.ndarray.flatten(np.array([[g]*4 for g in range(1,len(num_pc)+1)]))     #depends on number of clusters
+        cluster_accuracies_2=np.ndarray.flatten(np.array(cluster_accuracies))
+        
+        #FIGURE: Boxplot of Cluster Testing Accuracies vs. # of Principal Components
+        ax2.boxplot(cluster_accuracies,labels=num_pc)
+        ax2.scatter(num_pcs_2, cluster_accuracies_2,
+                    s=9,
+                    c="black",
+                    alpha="0.25",
+                    edgecolors="none",
+                    )
+        ax2.set_xlabel('Number of Principal Components')
+        ax2.set_ylabel('Testing Accuracy')
+        ax2.set_ylim((0.7, 1))
+        ax2.tick_params(axis='x', labelsize=7)
+        
+        #FIGURE: Percent Explained Variance vs. Number of Principal Components
+        ax3.set_xlabel('Number of Principal Components')
+        ax3.set_ylabel('Percent Explained Variance')
+        ax3.tick_params(axis='x', labelsize=7)
+        ax3.set_ylim((0, 1))
+        
+        x,y=pca_train.graph(chosen_pcs)
+        ax3.plot(x, y)
+
+        
+    else:
+        print("Dataset: " + paths[i].replace(absolute_dir+data_dir,""))
+        print("       with "+str(len(df))+" observations is invalid!")
 
 
 
-
+#FOR CONSIDERATION
+    #selecting for len(df)/10 features, and PCA on that
+    #another type of dimensionality reduction / feature selection
 
 
 
