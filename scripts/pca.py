@@ -10,9 +10,11 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 from sklearn_extensions.fuzzy_kmeans import FuzzyKMeans
 from sklearn.metrics import pairwise_distances_argmin
+from sklearn.metrics import mean_squared_error
 
 from factor_analyzer.factor_analyzer import calculate_kmo    
 from scipy.stats import bartlett
+
 
 import scipy
 import pingouin
@@ -25,8 +27,27 @@ absolute_dir="/Users/Stanley/Desktop/Tyrrell Lab/ROP Project/PCA-Clustering-Proj
 home_dir="/home/stanley_hua/scripts/pca_clustering/"
 data_dir="data/"
 
-#Dataset ("boneage" or "psp_plates")
-boneage_or_psp="psp_plates"
+#INPUT: Dataset and Type of Model (used for feature extraction)
+if int(input("DATASET: boneage or psp_plates (1/2) | "))==1:
+    boneage_or_psp="boneage"
+    model_goal="regression"
+else:
+    boneage_or_psp="psp_plates"
+    model_goal="classification"
+    
+# =============================================================================
+# if int(input("DATASET: Model goal is regression or classification (1/0) "))==1:
+#     model_goal="regression"
+# else:
+#     model_goal="classification"
+# =============================================================================
+
+#INPUT: PCA when Useful or not Useful
+if int(input("PCA where useful (1/0)? "))==1:
+    pca_useful="useful"
+else:
+    pca_useful="not_useful"
+
 
 #Get csv file paths
 paths=[]
@@ -110,7 +131,7 @@ def get_cluster_distance(cluster_centers, n_clusters):
     if round(max_min)==0:
         raise "Max Distance - Min Distance = 0"
     else:
-        return max_min, median_dist
+        return max_dist, median_dist, min_dist
     
 #%% Validate Assumptions
 def validate_assumptions(df):
@@ -148,13 +169,14 @@ def validate_assumptions(df):
 #%% KMO https://github.com/Sarmentor/KMO-Bartlett-Tests-Python/blob/master/correlation.py
 
 #%% Clustering Models
-def cluster_kmeans(train_data, test_data, num_clusters=4):
-    kmeans_model=KMeans(n_clusters=num_clusters, random_state=2004).fit(train_data)         #REMOVE RANDOM STATE
-    cluster_prediction=kmeans_model.predict(test_data)    
+def cluster_kmeans(train_data, test_data, num_clusters, n_iter, r_state=None):
+    kmeans_model=KMeans(n_clusters=num_clusters, random_state=r_state, n_init=n_iter).fit(train_data)
+    cluster_prediction=kmeans_model.predict(test_data)
     cluster_distances=get_cluster_distance(kmeans_model.cluster_centers_, num_clusters)
+    
 
-    # Fuzzy K Means
 # =============================================================================
+#     # Fuzzy K Means
 #     fuzzy_model=FuzzyKMeans(k=num_clusters,m=2).fit(train_data)
 #     cluster_prediction=pairwise_distances_argmin(test_data,fuzzy_model.cluster_centers_)
 # =============================================================================
@@ -163,9 +185,12 @@ def cluster_kmeans(train_data, test_data, num_clusters=4):
 
 #%%
 def create_plots():
-    global cluster_accuracies, cluster_distances, num_pc, cv, i, paths, pca_model
+    global cluster_accuracies, cluster_distances, num_pc, cv, i, paths, pca_model, model_goal
     
-    max_min_dist, median_dist=cluster_distances
+    max_dist=[k[0] for k in cluster_distances]
+    median_dist=[k[1] for k in cluster_distances]
+    min_dist=[k[2] for k in cluster_distances]
+    
     #CREATING FIGURE:
     fig = plt.figure()
     ax1 = fig.add_subplot(221)
@@ -190,11 +215,15 @@ def create_plots():
     ax2.scatter(num_pcs_2, cluster_accuracies_2,
                 s=9,
                 c="black",
-                alpha="0.25",
+                alpha=0.25,
                 edgecolors="none",
                 )
-    ax2.set_ylabel('Testing Accuracy')
-    ax2.set_ylim((0.7, 1))
+    if model_goal=="classification":
+        ax2.set_ylabel('Testing Accuracy')
+        ax2.set_ylim((0.25, 1))
+    else:
+        ax2.set_ylabel('Testing RMSE')
+        ax2.set_ylim((0, 100))
     ax2.tick_params(axis='x', labelsize=7)
     
     #FIGURE: Percent Explained Variance vs. Number of Principal Components
@@ -209,136 +238,146 @@ def create_plots():
     #FIGURE: Euclidean Distance
     ax4.set_xlabel('Number of Principal Components')
     ax4.set_ylabel('Euclidean Cluster Distance')
-    ax4.set_ylim((0, 50))
+    ax4.set_ylim((0, 75))
     ax4.tick_params(axis='x', labelsize=7)
-    ax4.plot(num_pc, max_min_dist, label="max-min")
+    ax4.plot(num_pc, max_dist, label="max")
     ax4.plot(num_pc, median_dist, label="median")
-    ax4.legend()
-    
-# =============================================================================
-#     fig.savefig(absolute_dir+"results/graphs/"+boneage_or_psp+"_dataset_"+str(i)+".png")
-# =============================================================================
+    ax4.plot(num_pc, min_dist, label="min")
+    ax4.legend(fontsize=8, markerscale=0.5)
+    1
+    fig.savefig(absolute_dir+"results/graphs/"+pca_useful+"/"+boneage_or_psp+"_dataset_"+str(i)+".png")
     
 #%% Main Code for Getting cv, num_pc, and cluster_accuracies
-def main(chosen_pcs, n_iter=1):
-    global df_test, pca_model
-    iteration=0
-    while iteration < n_iter:
-        df_data=df_test.copy()
-        
-        #chosen_pcs=[h for h in range(1, pca_train.max_pcs)]
-        cv=[]
-        num_pc=[]
-        cluster_accuracies=[]
-        cluster_distance_metrics=[]
-        for g in chosen_pcs:
-            #Get train and test data
-            cluster_train=pca_model.pcs_train.loc[:,:g]
-            cluster_val=pca_model.pcs_test.loc[:,:g]
-            
-            #Fit Training, Predict Test
-            cluster_prediction,cluster_distances=cluster_kmeans(cluster_train,cluster_val)
-            
-            #Getting cluster sizes
-            cluster_num=pd.Series(cluster_prediction).value_counts().index.to_list()
-            values=pd.Series(cluster_prediction).value_counts().values
-
-            #Get cluster test accuracies
-            df_data["cluster"]=cluster_prediction
-            df_data["prediction_bool"]=df_data.predictions==df_data.labels
-            df_cluster_accuracies=df_data.groupby(by=["cluster"]).mean()["prediction_bool"]
-            
-            accuracy_values=[]
-            for k in range(4):
-                try:
-                    accuracy_values.append(df_cluster_accuracies[k])
-                except:
-                    accuracy_values.append(0)
-            
-            #Get and append Coefficient of Variation
-            cv.append(scipy.stats.variation(values))
-            #Append PC number
-            num_pc.append(g)
-            #Append cluster testing accuracies
-            cluster_accuracies.append(accuracy_values)   
-            #Append euclidean distance (max-min, median)
-            cluster_distance_metrics.append(cluster_distances)
-        #Append to accumulator
-        if iteration==0:
-            cv_array=[cv]
-            num_pc_array=[num_pc]
-            cluster_acc_array=[cluster_accuracies]
-            cluster_distance_array=[cluster_distance_metrics]
-        else:
-            cv_array.append(cv)
-            num_pc_array.append(num_pc)
-            cluster_acc_array.append(cluster_accuracies)
-            cluster_distance_array.append(cluster_distance_metrics)
-        
-        iteration+=1
+def main(chosen_pcs, num_cluster=4, n_iter=1, random_state=None):
+    global df_test, pca_model, model_goal
+# =============================================================================
+#     iteration=0
+# =============================================================================
+    # while iteration < n_iter:
+    df_data=df_test.copy()
     
-    #Average of n_iter trials
-    final_cvs=np.average(cv_array, axis=0)
-    final_num_pcs=np.average(num_pc_array, axis=0).astype(int)
-    final_cluster_acc=np.average(cluster_acc_array, axis=0).transpose()
-    final_cluster_distances=np.average(cluster_distance_array, axis=0).transpose()
-    return final_cvs, final_num_pcs, final_cluster_acc, final_cluster_distances
+    #chosen_pcs=[h for h in range(1, pca_train.max_pcs)]
+    cv=[]
+    num_pc=[]
+    cluster_accuracies=[]
+    cluster_distance_metrics=[]
+    for g in chosen_pcs:
+        #Get train and test data
+        cluster_train=pca_model.pcs_train.loc[:,:g]
+        cluster_val=pca_model.pcs_test.loc[:,:g]
+        
+        #Fit Training, Predict Cluster
+        cluster_prediction,cluster_distances=cluster_kmeans(cluster_train,cluster_val, num_clusters=num_cluster, n_iter=n_iter, r_state=random_state)
+        
+        #Getting cluster sizes
+        cluster_num=pd.Series(cluster_prediction).value_counts().index.to_list()
+        values=pd.Series(cluster_prediction).value_counts().values
+
+        #Get cluster test accuracies
+        df_data["cluster"]=cluster_prediction
+        
+        if model_goal=="regression":
+            df_data["prediction_accuracy"]=df_data.apply(lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
+        else:
+            df_data["prediction_accuracy"]=(df_data.predictions==df_data.labels)
+                                             
+        
+        df_cluster_accuracies=df_data.groupby(by=["cluster"]).mean()["prediction_accuracy"]
+        
+        accuracy_values=[]
+        for k in range(4):
+            try:
+                accuracy_values.append(df_cluster_accuracies[k])
+            except:
+                accuracy_values.append(0)
+        
+        #Get and append Coefficient of Variation
+        cv.append(scipy.stats.variation(values))
+        #Append PC number
+        num_pc.append(g)
+        #Append cluster testing accuracies
+        cluster_accuracies.append(accuracy_values)   
+        #Append euclidean distance (max-min, median)
+        cluster_distance_metrics.append(cluster_distances)
+        
+    return cv, num_pc, cluster_accuracies, cluster_distance_metrics
+# =============================================================================
+#     #Append to accumulator
+#     if iteration==0:
+#         cv_array=[cv]
+#         num_pc_array=[num_pc]
+#         cluster_acc_array=[cluster_accuracies]
+#         cluster_distance_array=[cluster_distance_metrics]
+#     else:
+#         cv_array.append(cv)
+#         num_pc_array.append(num_pc)
+#         cluster_acc_array.append(cluster_accuracies)
+#         cluster_distance_array.append(cluster_distance_metrics)
+#     
+#     iteration+=1
+#     
+#     #Average of n_iter trials
+#     final_cvs=np.average(cv_array, axis=0)
+#     final_num_pcs=np.average(num_pc_array, axis=0).astype(int)
+#     final_cluster_acc=np.average(cluster_acc_array, axis=0).transpose()
+#     final_cluster_distances=np.average(cluster_distance_array, axis=0).transpose()
+#     return final_cvs, final_num_pcs, final_cluster_acc, final_cluster_distances
+# =============================================================================
 
 #%% Test Code
             
 col_indices=[str(i) for i in range(512)]
 
-# =============================================================================
-# for i in range(len(paths)):
-# =============================================================================
-i=9
-df=pd.read_csv(paths[i], index_col=False)
-try:
-    df=df.drop("Unnamed: 0", axis=1)
-except:
-    pass
-
-random.seed(2004)
-
-#GET TRAINING DATA & VAL & TEST DATA
-df_train=df[df.phase=="train"]
-df_test=df[df.phase=="val"]
-
-df_train_data=df_train.loc[:,col_indices]
-df_test_data=df_test.loc[:,col_indices]
-
-#Check if Assumptions are valid
-if validate_assumptions(df_train_data)=="Valid":
-    pca_model=pca()
-    pca_model.compute(df_train_data,df_test_data)
+for i in range(len(paths)):
+    df=pd.read_csv(paths[i], index_col=False)
+    try:
+        df=df.drop("Unnamed: 0", axis=1)
+    except:
+        pass
     
-    chosen_pcs=[1,2,3,5,10,15,20,30,50,80]
+    #GET TRAINING DATA & VAL & TEST DATA
+    df_train=df[df.phase=="train"]
+    df_test=df[df.phase=="val"]
     
-    cv, num_pc, cluster_accuracies, cluster_distances=main(chosen_pcs, n_iter=5)    #CHANGE n_iter
+    df_train_data=df_train.loc[:,col_indices]
+    df_test_data=df_test.loc[:,col_indices]
     
-    #Plots
-    create_plots()
-    
-    #Save Results
-    df_results=pd.DataFrame([cv, num_pc, cluster_accuracies.transpose(), cluster_distances.transpose()]).transpose()
-    df_results=df_results.rename({0:"cv", 1:"num_pc", 2:"cluster_accuracy", 3:"cluster_distance"}, axis=1)
-# =============================================================================
-#         df_results.to_csv(absolute_dir+"results/dataset/"+boneage_or_psp+"_dataset_"+str(i)+".csv", index="False")
-# =============================================================================
-    
-else:
-    print("Dataset: " + paths[i].replace(absolute_dir+data_dir,""))
-    print("       with "+str(len(df))+" observations is invalid!")
+    #Get, Plot and Save results
+    if pca_useful=="useful":
+        test_result="Valid"
+    else:
+        test_result="Invalid"
+
+    if validate_assumptions(df_train_data)==test_result:
+        pca_model=pca()
+        pca_model.compute(df_train_data,df_test_data)
+        
+        chosen_pcs=[1,2,3,5,10,15,20,30,50,70]              #CHANGE THIS
+        
+        cv, num_pc, cluster_accuracies, cluster_distances=main(chosen_pcs, num_cluster=4, n_iter=100)    #CHANGE n_iter
+        
+        #Plots
+        create_plots()
+        
+        #Save Results
+        df_results=pd.DataFrame([cv, num_pc, cluster_accuracies, cluster_distances]).transpose()
+        df_results=df_results.rename({0:"cv", 1:"num_pc", 2:"cluster_accuracy", 3:"cluster_distance"}, axis=1)
+        df_results.to_csv(absolute_dir+"results/dataset/"+pca_useful+"/"+boneage_or_psp+"_dataset_"+str(i)+".csv", index="False")
+        
+    else:
+        pass
+        # print("Dataset: " + paths[i].replace(absolute_dir+data_dir,""))
+        # print("       with "+str(len(df))+" observations is invalid!")
 
 
 
-
-
-
-#FOR CONSIDERATION
+#%%FOR CONSIDERATION
+    #MNIst
+    #KMO Test
     #compare different num of clusters
     #another type of dimensionality reduction / feature selection
     #what is the effect of clustering on features from a highly overfit model versus an underfit model
+    #Mauro: MNIst
 
 #Data Analysis
     #One-way ANOVA
