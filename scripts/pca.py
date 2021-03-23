@@ -13,7 +13,8 @@ from sklearn.decomposition import PCA, SparsePCA, KernelPCA, TruncatedSVD
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, \
+    davies_bouldin_score
 from yellowbrick.cluster.elbow import kelbow_visualizer
 
 from scipy.stats import variation, mode
@@ -28,36 +29,6 @@ absolute_dir = "/Users/Stanley/Desktop/Tyrrell Lab/ROP Project/PCA-Clustering-"\
                "Project/"
 remote_home_dir = "/home/stanley_hua/scripts/pca_clustering/"    #OBSOLETE
 data_dir = "data/"
-
-# INPUT: Dataset and Type of Model (used for feature extraction)
-dataset_choice = int(input("DATASET: ** 1: boneage, 2: psp_plates, 3: cifar\n"))
-if dataset_choice == 1:
-    dataset_used = "boneage"
-    model_goal = "regression"
-elif dataset_choice == 3:
-    dataset_used = "cifar10"
-    model_goal = "classification"
-else:
-    dataset_used = "psp_plates"
-    model_goal = "classification"
-
-# =============================================================================
-# if int(input("DATASET: Model goal is regression
-# or classification (1/0) "))==1:
-#     model_goal="regression"
-# else:
-#     model_goal="classification"
-# =============================================================================
-
-# Get csv file paths
-paths = []
-for root, dirs, files in os.walk(absolute_dir + data_dir + dataset_used,
-                                 topdown=False):
-    for name in files:
-        paths.append(os.path.join(root, name))
-
-# Plot Style
-sns.set_style("white")
 
 # Random Seeds: [1969, 1974, 2000, 2001]
 
@@ -487,15 +458,15 @@ class KMeansCluster:
 
     def evaluate_clustering(self):
         """Return Silouette, Calinski-Harabasz and Davies Bouldin score."""
-        sil_score=silhouette_score(self._train_data,
-                                   self.model.labels_,
-                                   metric='euclidean')
+        sil_score = silhouette_score(self._train_data,
+                                     self.model.labels_,
+                                     metric='euclidean')
 
-        cal_har_score=calinski_harabasz_score(self._train_data,
-                                              self.model.labels_)
+        cal_har_score = calinski_harabasz_score(self._train_data,
+                                                self.model.labels_)
 
-        dav_bou_score=davies_bouldin_score(self._train_data,
-                                           self.model.labels_)
+        dav_bou_score = davies_bouldin_score(self._train_data,
+                                             self.model.labels_)
 
         return sil_score, cal_har_score, dav_bou_score
 
@@ -506,26 +477,13 @@ class KMeansCluster:
                                        'euclidean'),
                                  axis=1))
 
-
-
 # Main Code for Getting Effects of PCs on Clustering
     def get_cluster_performances(self,
-                               df: pd.DataFrame,
-                               cluster_prediction: np.array,
-                               num_kept: int,
-                               num_cluster: int) -> pd.DataFrame:
-        """
-        Parameters
-        ----------
-        df : pd.DataFrame
-            Dataframe containing test samples.
-        cluster_prediction : np.array
-            Cluster belonging predictions for <df>.
-
-        Returns
-        -------
-        df_cluster_performances : TYPE
-            Contain cluster accuracies.
+                                 df: pd.DataFrame,
+                                 cluster_prediction: np.array,
+                                 num_kept: int,
+                                 num_cluster: int) -> list:
+        """Returns list of cluster accuracies.
         """
         global model_goal
         # Getting cluster sizes
@@ -540,29 +498,32 @@ class KMeansCluster:
 
         # Get cluster test accuracies
         df["cluster"] = cluster_prediction
-        if model_goal=="regression":
-            df["prediction_accuracy"] = df.apply(lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
+        if model_goal == "regression":
+            df["prediction_accuracy"] = df.apply(
+                lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
         else:
-            df["prediction_accuracy"] = (df.predictions==df.labels)
-        df_cluster_performances = df.groupby(by=["cluster"]).mean()["prediction_accuracy"]
+            df["prediction_accuracy"] = (df.predictions == df.labels)
+        df_cluster_performances = df.groupby(
+            by=["cluster"]).mean()["prediction_accuracy"]
 
-        if (df_cluster_performances==0).sum() > 0:
-            zero_idx = np.where(df_cluster_performances==0)
-            print("At "+str(num_kept)+ " PCs, the cluster/s "+
-                  str(zero_idx[0].tolist())+" with "+
-                  str(sorted_cluster_sizes[zero_idx])+" values have 0 accuracy.")
+        if (df_cluster_performances == 0).sum() > 0:
+            zero_idx = np.where(df_cluster_performances == 0)
+            print("At "+str(num_kept) + " PCs, the cluster/s " +
+                  str(zero_idx[0].tolist()) + " with " +
+                  str(sorted_cluster_sizes[zero_idx]) +
+                  " values have 0 accuracy.")
 
-            for cluster_idx in np.where(df_cluster_performances==0)[0]:
+            for cluster_idx in np.where(df_cluster_performances == 0)[0]:
                 print("Cluster "+str(cluster_idx) +
                       " has images with 0 accuracy at indices: " +
-                      str(np.where(cluster_prediction==cluster_idx)[0]))
+                      str(np.where(cluster_prediction == cluster_idx)[0]))
 
-        #Trying to prevent NA in CV and Test Accuracy
-        fix_cluster_performances=[]
+        # Trying to prevent NA in CV and Test Accuracy
+        fix_cluster_performances = []
         for cluster in range(num_cluster):
             try:
                 fix_cluster_performances.append(df_cluster_performances[cluster])
-            except:
+            except Exception():
                 fix_cluster_performances.append(-1)
 
         return fix_cluster_performances
@@ -574,7 +535,6 @@ def iterative_clustering(inputs: Inputs,
                                             Tuple[np.array, np.array, np.array],
                                             Optional[np.array]]:
     global model_goal
-
     # Accumulators
     cluster_performances = []
     centroid_distance = []
@@ -583,6 +543,8 @@ def iterative_clustering(inputs: Inputs,
     dav_bou_score_accumulator = []
     optimal_ks = []
 
+    cluster_model = Clustering(inputs.num_cluster, n_iter,
+                               inputs.random_seed)
     # Iterate between Number of Principal Components Kept
     for num_kept in inputs.chosen_features:
         # Get train and test data
@@ -590,35 +552,29 @@ def iterative_clustering(inputs: Inputs,
         cluster_val = pca_model.pcs_test.loc[:, :num_kept-1]
 
         # CLUSTER ALGORITHM
-        cluster_model = KMeansCluster(cluster_train,
-                                      cluster_val,
-                                      inputs.num_cluster,
-                                      n_iter,
-                                      inputs.random_seed)
-
-        # OPTIONAL: Elbow Plot to determine Optimal Number of K Clusters
-        if inputs.elbow_bool:
-            optimal_ks.append(cluster_model.elbow_plot())
-
+        cluster_model.fit(cluster_train)
         # Predict Cluster Belonging (for Test Set)
         cluster_prediction = cluster_model.predict()
 
-        # Append Cluster Testing Accuracies
+        # Get Cluster Performances
         cluster_performances.append(cluster_model.get_cluster_performances(
             inputs.df_test.copy(),
             cluster_prediction,
             num_kept,
             inputs.num_cluster))
 
-        # CLUSTERING: INTERNAL VALIDATION
-        # Get Silhouette, Calinski-Harabasz, Davies Bouldin Metrics (for Test)
-        sil_score, cal_har_score, dav_bou_score = cluster_model.evaluate_clustering()
-        sil_accumulator.append(sil_score)
-        cal_har_accumulator.append(cal_har_score)
-        dav_bou_score_accumulator.append(dav_bou_score)
+        # Get Intrinsic Clustering Performance
+        intrinsic_metrics = cluster_model.evaluate_clustering()
+        sil_accumulator.append(intrinsic_metrics[0])
+        cal_har_accumulator.append(intrinsic_metrics[1])
+        dav_bou_score_accumulator.append(intrinsic_metrics[2])
 
         # Get Mean Distance between Cluster Centroids
         centroid_distance.append(cluster_model.get_centroid_distance())
+
+        # OPTIONAL: Elbow Plot to determine Optimal Number of K Clusters
+        if inputs.elbow_bool:
+            optimal_ks.append(cluster_model.elbow_plot())
 
     return (cluster_performances, centroid_distance,
             (sil_accumulator, cal_har_accumulator, dav_bou_score_accumulator),
@@ -644,61 +600,64 @@ def create_plots(inputs: Inputs, pca_model: PCA,
     new_title = new_title.replace(".csv", "").replace("\\", " || ")
 
     # FIGURE: General plots [CV, Test Accuracy/RMSE, % Variance Explained]
-    fig = plt.figure()
-    ax1 = fig.add_subplot(221)
-    ax2 = fig.add_subplot(222)
-    ax3 = fig.add_subplot(223)
+    # fig = plt.figure()
+    # ax1 = fig.add_subplot(221)
+    # ax2 = fig.add_subplot(222)
+    # ax3 = fig.add_subplot(223)
 
     # Figure Settings
-    plt.tight_layout()
-    fig.suptitle(new_title, y=1.05)
+    # plt.tight_layout()
+    plt.rc('font', family='serif')
+    # fig.suptitle(new_title, y=1.05)
 
     # SUBPLOT: CV Accuracy vs. # of Principal Components
     df_cv = pd.DataFrame({"num_features": inputs.chosen_features,
                           "cv": results.cv_performance})
     idx = (df_cv.cv == mode(results.cv_performance).mode[0])
 
-    ax1.scatter(df_cv["num_features"], df_cv["cv"],
+    plt.title("Bone Age")
+    plt.scatter(df_cv["num_features"], df_cv["cv"],
                 facecolors='gray', alpha=.4, s=50)
-    ax1.scatter(df_cv["num_features"].loc[idx], df_cv["cv"].loc[idx],
+    plt.scatter(df_cv["num_features"].loc[idx], df_cv["cv"].loc[idx],
                 color="black", s=50, alpha=0.55)
-    ax1.set_ylabel('Coefficient of Variation')
-    ax1.set_xlabel('Number of Principal Components')
-    ax1.set_ylim((min(0, min(results.cv_performance)), round(np.nan_to_num(
+    plt.ylabel('Coefficient of Variation')
+    plt.xlabel('Number of Principal Components')
+    plt.ylim((min(0, min(results.cv_performance)), round(np.nan_to_num(
         results.cv_performance).max(), 1)+0.1))
+    plt.tight_layout()
     # ax1.tick_params(axis='x', labelsize=7)
-
-    # SUBPLOT: Boxplot of Cluster Testing Accuracies vs. #
-    # of Principal Components
-    ax2.tick_params(axis='x', labelsize=7)
-    ax2.boxplot(results.cluster_performances, labels=inputs.chosen_features)
-    ax2.scatter(chosen_features_repeated,
-                results._cluster_performance_flattened,
-                s=20,
-                c="black",
-                alpha=0.4,
-                edgecolors="none",
-                )
-    ax2.axhline(results.mean_performance,
-                c="red",
-                alpha=0.8)
-    if model_goal == "classification":
-        ax2.set_ylabel('Testing Accuracy')
-        ax2.set_ylim((min(0, min(results._cluster_performance_flattened)), 1))
-    else:
-        ax2.set_ylabel('Testing RMSE')
-        ax2.set_ylim((min(0, min(results._cluster_performance_flattened)), 100))
-    ax2.tick_params(axis='x', labelsize=7)
-    ax2.set_xlabel('Number of Principal Components')
-
-    # SUBPLOT: Percent Explained Variance vs. Number of Principal Components
-    ax3.set_xlabel('Number of Principal Components')
-    ax3.set_ylabel('Percent Explained Variance')
-    ax3.tick_params(axis='x', labelsize=7)
-    ax3.set_ylim((0, 1))
-    explained_variance = pca_model.get_cum_variance()
-    ax3.plot(explained_variance, marker="o", markersize=3, alpha=0.7)
-    fig.align_ylabels()
+    #
+    # # SUBPLOT: Boxplot of Cluster Testing Accuracies vs. #
+    # # of Principal Components
+    # ax2.tick_params(axis='x', labelsize=7)
+    # ax2.boxplot(results.cluster_performances, labels=inputs.chosen_features)
+    # ax2.scatter(chosen_features_repeated,
+    #             results._cluster_performance_flattened,
+    #             s=20,
+    #             c="black",
+    #             alpha=0.4,
+    #             edgecolors="none",
+    #             )
+    # ax2.axhline(results.mean_performance,
+    #             c="red",
+    #             alpha=0.8)
+    # if model_goal == "classification":
+    #     ax2.set_ylabel('Testing Accuracy')
+    #     ax2.set_ylim((min(0, min(results._cluster_performance_flattened)), 1))
+    # else:
+    #     ax2.set_ylabel('Testing RMSE')
+    #     ax2.set_ylim((min(0, min(results._cluster_performance_flattened)), 100))
+    # ax2.tick_params(axis='x', labelsize=7)
+    # ax2.set_xlabel('Number of Principal Components')
+    #
+    # # SUBPLOT: Percent Explained Variance vs. Number of Principal Components
+    # ax3.set_xlabel('Number of Principal Components')
+    # ax3.set_ylabel('Percent Explained Variance')
+    # ax3.tick_params(axis='x', labelsize=7)
+    # ax3.set_ylim((0, 1))
+    # explained_variance = pca_model.get_cum_variance()
+    # ax3.plot(explained_variance, marker="o", markersize=3, alpha=0.7)
+    # fig.align_ylabels()
 
     # FIGURE: Cluster Metrics
     fig2 = plt.figure()
@@ -706,7 +665,7 @@ def create_plots(inputs: Inputs, pca_model: PCA,
     bx2 = fig2.add_subplot(222)
     bx3 = fig2.add_subplot(223)
     bx4 = fig2.add_subplot(224)
-    fig2.suptitle("PSP Plates | N=2928 (Fold 4)")
+    fig2.suptitle(new_title)
 
     # SUBPLOT: Silhouette Coefficient
     bx1.set_ylabel('Silhouette Coefficient')
@@ -870,17 +829,27 @@ def main(inputs: Inputs,
 
 # CLIENT CODE
 if __name__ == "__main__":
+    # INPUT: Dataset and Type of Model (used for feature extraction)
+    dataset_choice = int(
+        input("DATASET: ** 1: boneage, 2: psp_plates, 3: cifar\n"))
+    if dataset_choice == 1:
+        dataset_used = "boneage"
+        model_goal = "regression"
+    elif dataset_choice == 3:
+        dataset_used = "cifar10"
+        model_goal = "classification"
+    else:
+        dataset_used = "psp_plates"
+        model_goal = "classification"
 
-# =============================================================================
-#     for dataset_used in ["psp_plates", "boneage"]:
-#         paths=[]
-#         for root, dirs, files in os.walk(absolute_dir + data_dir + dataset_used, topdown=False):
-#            for name in files:
-#               paths.append(os.path.join(root, name))
-# =============================================================================
-
+    # Get csv file paths
+    paths = []
+    for root, dirs, files in os.walk(absolute_dir + data_dir + dataset_used,
+                                     topdown=False):
+        for name in files:
+            paths.append(os.path.join(root, name))
     inputs = Inputs(paths)
-    inputs.which_datasets = [11]
+    inputs.which_datasets = [13]
     # Iterate over Seeds
     # for random_seed in [1969, 1974, 2000, 2001]:
     inputs.random_seed = 1969
