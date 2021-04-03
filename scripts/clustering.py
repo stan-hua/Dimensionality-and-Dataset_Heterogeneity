@@ -1,5 +1,12 @@
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, \
+    davies_bouldin_score
+from yellowbrick.cluster.elbow import kelbow_visualizer
+from scipy.spatial.distance import cdist
 import skfuzzy as fuzz
-from pca import *
+
+import pandas as pd
+import numpy as np
 
 
 # CLASS Clustering
@@ -29,6 +36,8 @@ class Clustering:
     _n_iter: int
     _random_state: int
     _soft_cluster: bool
+
+    temp_cluster_sizes: np.array
 
     def __init__(self,
                  num_clusters: int,
@@ -107,10 +116,10 @@ class Clustering:
                                  df: pd.DataFrame,
                                  cluster_prediction: np.array,
                                  num_kept: int,
-                                 num_cluster: int) -> np.array:
+                                 num_cluster: int,
+                                 model_goal: str) -> np.array:
         """Returns list of cluster accuracies.
         """
-        global model_goal
         # Getting cluster counts
         cluster_freq = np.unique(cluster_prediction, return_counts=True)
 
@@ -121,7 +130,6 @@ class Clustering:
                 lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
         else:
             df["prediction_accuracy"] = (df.predictions == df.labels)
-
 
         # TODO: Adjust Cluster Performance by cluster probabilities
         if self._soft_cluster:
@@ -153,12 +161,12 @@ class Clustering:
             try:
                 fix_cluster_performances.append(
                     df_cluster_performances[cluster])
-            except Exception():
+            except:
                 fix_cluster_performances.append(-1)
-        fix_cluster_performances = np.array(fix_cluster_performances)
+        fix_cluster_performances = np.array(fix_cluster_performances) # without anything
 
         # TODO: Adjust Cluster Performances by Sample Size
-        cluster_adjusted_size = cluster_freq * fix_cluster_performances
+        self.temp_cluster_sizes = cluster_freq[1]
 
         return fix_cluster_performances
 
@@ -177,7 +185,7 @@ class FuzzyCMeans:
         cluster_centers_:
             Location of cluster centers
         probs_:
-            Probability of Hard Clustering
+            Probability of being in hard cluster (highest prob.)
         labels_:
             Hard cluster predictions
     """
@@ -201,77 +209,23 @@ class FuzzyCMeans:
         self.labels_ = None
 
     def fit(self, train_data: pd.DataFrame) -> None:
-        """Fit Fuzzy C-Means on Training Data"""
+        """Fit Fuzzy C-Means on <train_data>."""
         center, _, _, _, _, num_itered, fpc = fuzz.cluster.cmeans(
             train_data.transpose(), self._num_clusters, 2, error=0.005,
             maxiter=self._n_iter, init=None)
         self.cluster_centers_ = center
 
     def predict(self, test_data: pd.DataFrame) -> np.array:
+        """Return predicted cluster assignment."""
         u, u0, d, jm, p, fpc = fuzz.cmeans_predict(test_data.transpose(),
                                                    self.cluster_centers_, 2,
                                                    error=0.005,
                                                    maxiter=self._n_iter)
-        cluster_pred = cluster_model.predict()
         # Hard Clustering
-        self.labels_ = np.argmax(cluster_pred, axis=0)
+        self.labels_ = np.argmax(u, axis=0)
         # Probabilities
-        self.probs_ = np.max(cluster_pred, axis=0)
+        self.probs_ = np.max(u, axis=0)
 
         return self.labels_
 
 
-# CLIENT CODE
-if __name__ == "__main__":
-    # INPUT: Dataset and Type of Model (used for feature extraction)
-    dataset_choice = int(
-        input("DATASET: ** 1: boneage, 2: psp_plates, 3: cifar\n"))
-    if dataset_choice == 1:
-        dataset_used = "boneage"
-        model_goal = "regression"
-    elif dataset_choice == 3:
-        dataset_used = "cifar10"
-        model_goal = "classification"
-    else:
-        dataset_used = "psp_plates"
-        model_goal = "classification"
-
-    # Get csv file paths
-    paths = []
-    for root, dirs, files in os.walk(absolute_dir + data_dir + dataset_used,
-                                     topdown=False):
-        for name in files:
-            paths.append(os.path.join(root, name))
-    inputs = Inputs(paths)
-    inputs.which_datasets = [13]
-    # Iterate over Seeds
-    # for random_seed in [1969, 1974, 2000, 2001]:
-    inputs.random_seed = 1969
-
-    df_selection_methods = pd.DataFrame()
-
-    # Loop over the datasets (folds)
-    # for dataset_num in inputs.which_datasets:
-    #     _, df_selection_methods = main(inputs,
-    #                                    dataset_num,
-    #                                    df_selection_methods)
-    #
-    # if inputs.save_bool == "Y":
-    #     df_selection_methods.to_csv(absolute_dir+"results/pc_selection/" +
-    #                                 dataset_used+f"-{inputs.random_seed}"+
-    #                                 ".csv", index=False)
-
-
-    if df_selection_methods is None:
-        df_selection_methods = pd.DataFrame()
-
-    inputs.get_df_split(1)
-    pca_model = get_pca_model(inputs)
-    num_kept = 5
-    cluster_train = pca_model.pcs_train.loc[:, :num_kept-1]
-    cluster_val = pca_model.pcs_test.loc[:, :num_kept-1]
-    cluster_model = FuzzyCMeans(cluster_train,
-                                cluster_val,
-                                inputs.num_cluster,
-                                1000,
-                                inputs.random_seed)

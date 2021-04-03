@@ -1,5 +1,5 @@
-from pca import *
-from random_tests import *
+from main import *
+from scripts.obsolete.random_tests import *
 
 from sklearn.model_selection import train_test_split
 
