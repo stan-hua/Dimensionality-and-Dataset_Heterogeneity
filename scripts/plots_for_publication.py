@@ -131,7 +131,6 @@ def plot_fig_2():
     Components (PC)."""
     # Sample Size 300. Fold 1 of 4.
     df_small = pd.read_csv(f"{data_dir}psp_plates_dataset_4.csv")
-    df_small = pd.read_csv(f"{data_dir}psp_plates_dataset_4.csv")
     # Sample Size: 2928. Fold 1 of 4.
     df_big = pd.read_csv(f"{data_dir}psp_plates_dataset_12.csv")
 
@@ -227,7 +226,9 @@ def plot_fig_3():
 
 # SUP. FIGURE 1: Random Seed on CV
 # HELPER FUNCTIONS
-def get_cvs(path: str, model_goal: str, num_pcs: int, num_iter: int) -> int:
+def get_cvs(path: str, model_goal: str,
+            num_pcs: int, num_iter: int,
+            weighted: bool = False, method: str = "kmeans") -> int:
     """For <path>, use <num_pcs> number of Principal Components in calculating
     Coefficient of Variation. Iterate this <num_iter> times.
 
@@ -243,7 +244,7 @@ def get_cvs(path: str, model_goal: str, num_pcs: int, num_iter: int) -> int:
     cv_accum = []
     for i in range(num_iter):
         cluster_model = Clustering(inputs.num_cluster, 100,
-                                   inputs.random_seed)
+                                   inputs.random_seed, method=method)
         cluster_model.fit(pca_model.pcs_train.loc[:, :num_pcs-1])
         cluster_prediction = cluster_model.predict(
             pca_model.pcs_test.loc[:, :num_pcs-1])
@@ -254,15 +255,19 @@ def get_cvs(path: str, model_goal: str, num_pcs: int, num_iter: int) -> int:
             inputs.num_cluster,
             model_goal=model_goal)
 
-        weighted_stats = DescrStatsW(cluster_performances,
-                                     weights=cluster_model.temp_cluster_sizes,
-                                     ddof=0)
-        cv_accum.append(weighted_stats.std / weighted_stats.mean)
+        if weighted:
+            weighted_stats = DescrStatsW(cluster_performances,
+                                         weights=cluster_model.temp_cluster_sizes,
+                                         ddof=0)
+            cv_accum.append(weighted_stats.std / weighted_stats.mean)
+        else:
+            cv_accum.append(np.std(cluster_performances) /
+                            np.mean(cluster_performances))
 
     return cv_accum
 
 
-def get_datasets_cvs(small: bool) -> None:
+def get_datasets_cvs(small: bool, weighted: bool = False) -> None:
     """Get and save Coefficient of Variation values iterated for each dataset.
     """
     # PATHS to data
@@ -278,25 +283,35 @@ def get_datasets_cvs(small: bool) -> None:
         size = "smallest"
 
     # Get CV iterated with randomly chosen seed
-    cvs_bone = get_cvs(orig_data_dir+bone, "regression", num_pcs=9,
-                       num_iter=100)
-    cvs_cifar = get_cvs(orig_data_dir+cifar, "classification", num_pcs=46,
-                        num_iter=100)
-    cvs_psp = get_cvs(orig_data_dir+psp, "classification", num_pcs=43,
-                      num_iter=100)
+    cvs_bone = get_cvs(orig_data_dir+bone, "regression",
+                       num_pcs=9,
+                       num_iter=100,
+                       weighted=weighted)
+    cvs_cifar = get_cvs(orig_data_dir+cifar, "classification",
+                        num_pcs=46,
+                        num_iter=100,
+                        weighted=weighted)
+    cvs_psp = get_cvs(orig_data_dir+psp, "classification",
+                      num_pcs=43,
+                      num_iter=100,
+                      weighted=weighted)
 
     df = pd.DataFrame()
     df["boneage"] = cvs_bone
     df["cifar10"] = cvs_cifar
     df["psp_plates"] = cvs_psp
 
+    weighted_str = ""
+    if weighted:
+        weighted_str = ", weighted by size"
+
     df.to_csv(
-        f"{results_dir}CVs/random_seeds ({size} size, weighted by size).csv",
+        f"{results_dir}CVs/random_seeds ({size} size{weighted_str}).csv",
         index=False)
 
 
 def plot_sup_fig_1(weighted: bool = False):
-    """Plot Figure 4: Bar Plots of CV vs. Dataset used.
+    """Plot Supplementary Figure 1: Bar Plots of CV vs. Random Seed.
 
     Minimum Mode CV (random seed = 1969) is used to determine number of
     principal components to select.
@@ -347,6 +362,65 @@ def plot_sup_fig_1(weighted: bool = False):
     plt.savefig(f"{final_dir}cv vs. random_seed{weight_str}.png",
                 dpi=1200)
 
+    # Extra Violin Plot
+    # sns.violinplot(data=df_small, scale="width", label="Small")
+    # sns.violinplot(data=df_big, scale="width", label="Big")
+    # plt.ylim([0, 0.3])
+    # plt.ylabel("Coefficient of Variation")
+    # plt.legend()
 
 
+# SUP. FIGURE 2: PCs on CV
+def plot_sup_fig_2():
+    """Plot : Bar Plots of CV vs. Number of Principal Components.
 
+    In addition, the maximum sample size for each dataset is used, more
+    specifically fold 1 of 4.
+    """
+    big_paths = ["boneage_dataset_8.csv", "psp_plates_dataset_8.csv",
+                 "cifar10_dataset_0.csv"]
+    small_paths = ["boneage_dataset_0.csv", "psp_plates_dataset_0.csv",
+                   "cifar10_dataset_8.csv"]
+    df_big = pd.DataFrame()
+    for path in big_paths:
+        df = pd.read_csv(data_dir+path)
+        df_big = pd.concat([df_big, df.cv], axis=1)
+    df_small = pd.DataFrame()
+    for path in small_paths:
+        df = pd.read_csv(data_dir+path)
+        df_small = pd.concat([df_small, df.cv], axis=1)
+
+    df_big.columns = ["boneage", "cifar10", "psp_plates"]
+    df_small.columns = ["boneage", "cifar10", "psp_plates"]
+
+    # PRE: Prepare for creating plot legend
+    legend_elements = [Line2D([0], [0], marker='o',
+                              label='Smallest Dataset Size',
+                              markerfacecolor='darkmagenta',
+                              markersize=7, ls=""),
+                       Line2D([0], [0], marker='o',
+                              label='Greatest Dataset Size',
+                              markerfacecolor='goldenrod',
+                              markersize=7, ls="")]
+
+    # Create Figure
+    plt.figure()
+    plt.title("Effect of Number of Principal Components on CV")
+    plt.ylabel("Coefficient of Variation", labelpad=3)
+    plt.xlabel("Dataset Used", labelpad=3)
+    # plt.ylim((0, max(0.2, round(df_small.max().max(), 2)+0.05)))
+    plt.ylim((0, 0.25))
+    sns.stripplot(data=df_small,
+                  order=["boneage", "cifar10", "psp_plates"],
+                  color="darkmagenta", alpha=0.15)
+    plt.boxplot(df_small, positions=[0, 1, 2],
+                labels=["Bone Age", "Modified CIFAR10", "PSP Plates"])
+
+    sns.stripplot(data=df_big,
+                  order=["boneage", "cifar10", "psp_plates"],
+                  color="goldenrod", alpha=0.15)
+    plt.boxplot(df_big, positions=[0, 1, 2],
+                labels=["Bone Age", "Modified CIFAR10", "PSP Plates"])
+
+    plt.legend(handles=legend_elements, loc='best', shadow=True)
+    plt.tight_layout()

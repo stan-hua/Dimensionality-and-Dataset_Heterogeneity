@@ -8,5 +8,6 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="csc148" />
     <orderEntry type="module" module-name="Scopus Scraping" />
+    <orderEntry type="module" module-name="CS" />
   </component>
 </module>

@@ -1,4 +1,4 @@
-from svcca import get_sample_sizes
+from typing import List
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
@@ -6,28 +6,12 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import os
+
 sns.set_style("white")
+plt.rc('font', family='serif')
 
 absolute_dir = "/Users/Stanley/Desktop/Tyrrell Lab/" \
                "ROP Project/PCA-Clustering-Project/results/"
-
-
-def _helper_get_sample_sizes(dataset_used: str) -> list:
-    """Return list of total sample sizes."""
-    # Get Paths for getting sample size
-    paths = []
-    for root, dirs, files in os.walk(absolute_dir.replace("results", "data") +
-                                     dataset_used, topdown=False):
-        for name in files:
-            paths.append(os.path.join(root, name))
-
-    # Get Sample Sizes
-    if dataset_used == "cifar10":
-        sample_sizes = get_sample_sizes(paths, dataset_used, end=20)
-    else:
-        sample_sizes = get_sample_sizes(paths, dataset_used)
-
-    return np.array(sample_sizes).sum(axis=0)
 
 
 def get_pc_selection_dfs(dataset_used: str) -> list:
@@ -58,91 +42,78 @@ def divide_by_max_pcs(x):
 
 
 # PLOT Selection Methods
-def plot_selection_methods(dataset_used: str,
-                           dfs: list, sample_sizes: list) -> None:
-    plt.rcParams["figure.figsize"] = (8, 6)
+def plot_selection_methods(dfs: List[List[pd.DataFrame]]) -> None:
     """Create Plots for selection methods for number of principal components to
     keep."""
-    legend_elements = [Line2D([0], [0], marker='o', label='Cumulative Percent Variance > 0.99',
-                              markerfacecolor='g', markersize=7, ls=""),
-                       Line2D([0], [0], marker='o', label='Cumulative Percent Variance > 0.8',
-                              markerfacecolor='r', markersize=7, ls=""),
-                       Line2D([0], [0], marker='^', label='Perc. Var. > 0.1',
-                              markerfacecolor='purple', markersize=7, ls=""),
-                       Line2D([0], [0], marker='s', label='Eig. 1',
-                              markerfacecolor='b', markersize=7, ls=""),
-                       Line2D([0], [0], marker='s', label='Eig. Avg.',
-                              markerfacecolor='y', markersize=7, ls=""),
-                       Line2D([0], [0], marker='^', label='Minimum Mode CV',
-                              markerfacecolor='orange', markersize=7, ls="")
-                       ]
-    x_tick_labels = list(set(sample_sizes))
+
+    # Plot Prep.
+    x_tick_labels = list(set(dfs[0][0].sample_size))
     x_tick_labels.sort()
+    x_ticks = np.array(list(range(1, len(x_tick_labels)+1))*4).reshape(
+        len(x_tick_labels), 4).transpose().flatten()
+    x_tick_loc = list(range(1, len(x_tick_labels)+1))
 
-    # 1) Plot Percent Variance -based Methods oax1 Selection
-    fig, ax1 = plt.subplots()
-    ax1.scatter(x=x_ticks, y=dfs[0]["Cum. Perc. Var. (0.8)"],
-                c="r",
-                alpha=0.5)
+    # 1) Plot Percent Variance -based Methods of Selection
+    fig_1 = plt.figure()
+    fig_1.subplots_adjust(wspace=0)
+    fig_1.set_tight_layout(True)
+    ax1 = fig_1.add_subplot(131)
+    ax2 = fig_1.add_subplot(132, sharey=ax1)
+    ax3 = fig_1.add_subplot(133, sharey=ax1)
 
-    ax1.scatter(x_ticks, dfs[0]["Cum. Perc. Var. (0.99)"],
-                c="g",
-                alpha=0.5)
-
-    # ax1.scatter(x_ticks, dfs[0]["Perc. Var. (0.1)"],
-    #             c="purple",
-    #             marker="^",
-    #             alpha=0.5)
-
-    ax1.set_title(dataset_used)
-    ax1.set_xlabel("Training Sample Size")
-    ax1.set_ylabel("Number of PCs Suggested")
-    ax1.legend(handles=legend_elements[:3], loc='best',   # legend_elements[:3] including Perc. Var. (0.1)
-               bbox_to_anchor=(1.05, 1), frameon=True)
-    ax1.set_xticks(x_tick_loc)
-    ax1.set_xticklabels(x_tick_labels)
-    # ax1.set_ylim([0, 450])
-    # ax1.set_ylim([0, 1])
-    plt.tight_layout()
-
-    # 2) Plot Eigenvalue-based Methods of Selection
-    # fig, ax2 = plt.subplots()
-    #
-    # ax2.scatter(x_ticks, dfs[0]["Eig. 1"],
-    #                  c="b",
-    #                  marker="s",
-    #                  alpha=0.5)
-    #
-    # ax2.scatter(x_ticks, dfs[0]["Eig. Avg."],
-    #                  c="y",
-    #                  marker="s",
-    #                  alpha=0.5)
-    #
-    # ax2.set_title(dataset_used)
-    # ax2.set_xlabel("Training Sample Size")
-    # ax2.set_ylabel("Number of PCs Suggested")
-    # ax2.legend(handles=legend_elements[3:5], loc='best', frameon=True)
-    # ax2.set_xticks(x_tick_loc)
-    # ax2.set_xticklabels(x_tick_labels)
-    # # ax2.set_ylim([0, 450])
-    # ax2.set_ylim([0, 1])
-
-    # 3) Plot CV -based Methods of Selection
-    # fig, ax3 = plt.subplots()
-
-    ax1.scatter(x_ticks, dfs[0]["Minimum Mode CV"],
-                c="orange",
-                marker="^",
-                alpha=0.5)
-
-    ax1.set_title(dataset_used)
-    ax1.set_xlabel("Training Sample Size")
-    ax1.set_ylabel("Number of PCs Suggested")
-    ax1.legend(handles=legend_elements[5:], loc='best', frameon=True)
-    ax1.set_xticks(x_tick_loc)
-    ax1.set_xticklabels(x_tick_labels)
+    ax1.set_title("Bone Age")
+    ax1.set_ylabel("Suggested Number of PCs")
     ax1.set_ylim([0, 450])
-    # ax1.set_ylim([0, 1])
+    ax1.set_xticks(x_tick_loc)
+    ax1.set_xticklabels(x_tick_labels, rotation=315)
+
+    ax1.scatter(x=x_ticks, y=dfs[0][0]["Cum. Perc. Var. (0.8)"],
+                c="r", s=15, alpha=0.5, label="CPV >= 0.8")
+
+    ax1.scatter(x_ticks, dfs[0][0]["Cum. Perc. Var. (0.99)"],
+                c="g", s=15, alpha=0.5, label="CPV >= 0.99")
+
+    ax1.scatter(x_ticks, dfs[0][0]["Minimum Mode CV"],
+                c="orange", s=15, marker="^", alpha=0.5, label="Min. Mode")
+
+    ax2.set_title("PSP Plates")
+    ax2.set_xlabel("Sample Size", labelpad=10)
+    ax2.set_xticks(x_tick_loc)
+    ax2.set_xticklabels(x_tick_labels, rotation=315)
+
+    ax2.scatter(x=x_ticks, y=dfs[1][0]["Cum. Perc. Var. (0.8)"],
+                c="r", s=15, alpha=0.5, label="CPV >= 0.8")
+
+    ax2.scatter(x_ticks, dfs[1][0]["Cum. Perc. Var. (0.99)"],
+                c="g", s=15, alpha=0.5, label="CPV >= 0.99")
+
+    ax2.scatter(x_ticks, dfs[1][0]["Minimum Mode CV"],
+                c="orange", s=15, marker="^", alpha=0.5, label="Min. Mode")
+
+    # Plot Prep.
+    x_tick_labels = list(set(dfs[2][0].sample_size))
+    x_tick_labels.sort()
+    x_ticks = []
+    for i in range(len(x_tick_labels)):
+        x_ticks += 4 * [i+1]
+    x_tick_loc = list(range(1, len(x_tick_labels)+1))
+
+    ax3.set_title("CIFAR 10")
+    ax3.set_xticks(x_tick_loc)
+    ax3.set_xticklabels(x_tick_labels, rotation=315)
+
+    ax3.scatter(x=x_ticks, y=dfs[2][0]["Cum. Perc. Var. (0.8)"],
+                c="r", s=15, alpha=0.5, label="CPV >= 0.8")
+
+    ax3.scatter(x_ticks, dfs[2][0]["Cum. Perc. Var. (0.99)"],
+                c="g", s=15, alpha=0.5, label="CPV >= 0.99")
+
+    ax3.scatter(x_ticks, dfs[2][0]["Minimum Mode CV"],
+                c="orange", s=15, marker="^", alpha=0.5, label="Min. Mode")
+
+    plt.setp(ax2.get_yticklabels(), visible=False)
+    plt.setp(ax3.get_yticklabels(), visible=False)
+    ax1.legend(shadow=True, loc="upper left")
 
 
 # PLOT CV vs. Random Seed
@@ -175,35 +146,44 @@ def plot_cv_random_seed(dataset_used: str,
 
 if __name__ == "__main__":
     # Get Dataset Choice
-    dataset_choice = int(
-        input("DATASET: ** 1: boneage, 2: psp_plates, 3: cifar\n"))
-    if dataset_choice == 1:
-        dataset_used = "boneage"
-        num_sample_sizes = 4
-    elif dataset_choice == 3:
-        dataset_used = "cifar10"
-        num_sample_sizes = 5
-    else:
-        dataset_used = "psp_plates"
-        num_sample_sizes = 4
+    # dataset_choice = int(
+    #     input("DATASET: ** 1: boneage, 2: psp_plates, 3: cifar\n"))
 
-    # Concatenate PC Selection + Sample Sizes
-    dfs = get_pc_selection_dfs(dataset_used)
-    sample_sizes = _helper_get_sample_sizes(dataset_used)
-    for df in dfs:
-        df["sample_size"] = sample_sizes
-        df.sort_values(by=["sample_size"], inplace=True, ignore_index=True)
-    sample_sizes.sort()
+    all_dfs = []
 
-    # Divide by max_pcs
-    # dfs[0] = dfs[0].apply(divide_by_max_pcs, axis=1)
+    for dataset_choice in [1, 2, 3]:
+        if dataset_choice == 1:
+            dataset_used = "boneage"
+            sample_sizes = [300] * 4
+            sample_sizes += [700] * 4
+            sample_sizes += [5674] * 4
+            sample_sizes += [2837] * 4
+        elif dataset_choice == 3:
+            dataset_used = "cifar10"
+            sample_sizes = [12000] * 4
+            sample_sizes += [2000] * 4
+            sample_sizes += [400] * 4
+            sample_sizes += [8000] * 4
+            sample_sizes += [800] * 4
+        else:
+            dataset_used = "psp_plates"
+            sample_sizes = [100] * 4
+            sample_sizes += [300] * 4
+            sample_sizes += [2928] * 4
+            sample_sizes += [1464] * 4
 
-    # Plot Prep.
-    x_ticks = np.array(list(range(1, num_sample_sizes+1))*4).reshape(
-        num_sample_sizes, 4).transpose().flatten()
-    x_tick_loc = list(range(1, num_sample_sizes+1))
+        # Concatenate PC Selection + Sample Sizes
+        dfs = get_pc_selection_dfs(dataset_used)
 
-    plot_selection_methods(dataset_used, dfs, sample_sizes)
+        for df in dfs:
+            df["sample_size"] = sample_sizes
+            df.sort_values(by=["sample_size"], inplace=True, ignore_index=True)
+
+        all_dfs.append(dfs)
+        # Divide by max_pcs
+        # dfs[0] = dfs[0].apply(divide_by_max_pcs, axis=1)
+
+    plot_selection_methods(all_dfs)
 
 
 

@@ -1,4 +1,4 @@
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering, MeanShift
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, \
     davies_bouldin_score
 from yellowbrick.cluster.elbow import kelbow_visualizer
@@ -18,7 +18,7 @@ class Clustering:
             Training set data
         _test_data:
             Test set data
-        model:
+        algo:
             Either of class K-Means or Fuzzy C-Means. Used to cluster training
             and test set
         _num_clusters:
@@ -43,33 +43,45 @@ class Clustering:
                  num_clusters: int,
                  n_iter: int,
                  random_state_: int = None,
-                 soft_cluster: bool = False):
+                 method: str = "kmeans"):
         self._train_data = None
         self._test_data = None
         self._num_clusters = num_clusters
         self._n_iter = n_iter
         self._random_state = random_state_
-        self._soft_cluster = soft_cluster
+        self._soft_cluster = False
 
-        # Initialize KMeans Model
-        if not soft_cluster:
-            self.model = KMeans(n_clusters=num_clusters,
-                                random_state=random_state_,
-                                n_init=n_iter)
-        else:
-            self.model = FuzzyCMeans(n_clusters=num_clusters,
-                                     random_state=random_state_,
-                                     n_iner=n_iter)
+        # Initialize KMeans
+        if method == "kmeans":
+            self.algo = KMeans(n_clusters=num_clusters,
+                               random_state=random_state_,
+                               n_init=n_iter)
+        # Initialize Fuzzy CMeans
+        elif method == "fuzzycmeans":
+            self.algo = FuzzyCMeans(num_clusters=num_clusters,
+                                    random_state_=random_state_,
+                                    n_iter=n_iter)
+            self._soft_cluster = True
+        # Initialize Agglomerative
+        elif method == "agglomerative":
+            self.algo = AgglomerativeClustering(n_clusters=num_clusters)
+        # Initialize MeanShift
+        elif method == "meanshift":
+            self.algo = MeanShift()
 
     def fit(self, train_data: pd.DataFrame) -> None:
         """Fit on training data"""
         self._train_data = train_data
-        self.model.fit(train_data)
+        self.algo.fit(train_data)
 
     def predict(self, test_data: pd.DataFrame) -> np.array:
         """Return cluster predictions."""
         self._test_data = test_data
-        return self.model.predict(test_data)
+        try:
+            return self.algo.predict(test_data)
+        # When clustering algo. cannot do external assignment
+        except AttributeError:
+            return self.algo.fit_predict(test_data)
 
     def elbow_plot(self,
                    start_num_clusters: int = 2,
@@ -91,25 +103,38 @@ class Clustering:
         return elbow_k
 
     def evaluate_clustering(self):
-        """Return Silhouette, Calinski-Harabasz and Davies Bouldin score."""
-        sil_score = silhouette_score(self._train_data,
-                                     self.model.labels_,
+        """Return Silhouette, Calinski-Harabasz and Davies Bouldin score.
+        ==Precondition==:
+            - fit or predict was called.
+        """
+        # try:
+        #     sil_score = silhouette_score(self._train_data,
+        #                                  self.algo.labels_,
+        #                                  metric='euclidean')
+        #     cal_har_score = calinski_harabasz_score(self._train_data,
+        #                                             self.algo.labels_)
+        #     dav_bou_score = davies_bouldin_score(self._train_data,
+        #                                          self.algo.labels_)
+        # except ValueError:
+        sil_score = silhouette_score(self._test_data,
+                                     self.algo.labels_,
                                      metric='euclidean')
-
-        cal_har_score = calinski_harabasz_score(self._train_data,
-                                                self.model.labels_)
-
-        dav_bou_score = davies_bouldin_score(self._train_data,
-                                             self.model.labels_)
+        cal_har_score = calinski_harabasz_score(self._test_data,
+                                                self.algo.labels_)
+        dav_bou_score = davies_bouldin_score(self._test_data,
+                                             self.algo.labels_)
 
         return sil_score, cal_har_score, dav_bou_score
 
     def get_centroid_distance(self):
         """Return mean centroid distances."""
-        return np.average(np.min(cdist(self._train_data,
-                                       self.model.cluster_centers_,
-                                       'euclidean'),
-                                 axis=1))
+        if issubclass(type(self.algo), KMeans):
+            return np.average(np.min(cdist(self._train_data,
+                                           self.algo.cluster_centers_,
+                                           'euclidean'),
+                                     axis=1))
+        else:
+            return -1
 
     # Main Code for Getting Effects of PCs on Clustering
     def get_cluster_performances(self,
@@ -133,7 +158,7 @@ class Clustering:
 
         # TODO: Adjust Cluster Performance by cluster probabilities
         if self._soft_cluster:
-            df["cluster_probs"] = self.model.probs_
+            df["cluster_probs"] = self.algo.probs_
             df_cluster_performances = df.groupby(by=["cluster"]).apply(
                 lambda x: np.average(
                     x.prediction_accuracy, weights=x.cluster_probs))
@@ -163,7 +188,7 @@ class Clustering:
                     df_cluster_performances[cluster])
             except:
                 fix_cluster_performances.append(-1)
-        fix_cluster_performances = np.array(fix_cluster_performances) # without anything
+        fix_cluster_performances = np.array(fix_cluster_performances)  # without anything
 
         # TODO: Adjust Cluster Performances by Sample Size
         self.temp_cluster_sizes = cluster_freq[1]
@@ -227,5 +252,7 @@ class FuzzyCMeans:
         self.probs_ = np.max(u, axis=0)
 
         return self.labels_
+
+
 
 

@@ -96,5 +96,9 @@ class MyPCA(PCA):
             print("Noise Variance:", self.noise_variance_)
         return self.noise_variance_
 
-
-
+    def get_max_pc(self) -> int:
+        """Return maximum number of principal components.
+        ==Precondition==:
+            - compute is called.
+        """
+        return self.pcs_test.shape[1] + 1

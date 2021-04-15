@@ -1,4 +1,6 @@
-from pca import *
+from __future__ import annotations
+from typing import List, Tuple
+from main import *
 from scipy.stats import ttest_ind_from_stats
 from scipy.stats import bartlett
 import cca_core

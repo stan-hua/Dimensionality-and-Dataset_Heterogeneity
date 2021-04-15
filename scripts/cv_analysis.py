@@ -167,4 +167,12 @@ if __name__ == "__main__":
 
     print(df.groupby("training_size").mean())
 
-    df.to_csv(f"{absolute_dir}results/CVs/{dataset_used}.csv")
+    df.to_csv(f"{absolute_dir}results/CVs/{dataset_used}.csv", index=False)
+
+
+dataset_used = "boneage"
+
+df = pd.read_csv(f"{absolute_dir}results/CVs/{dataset_used}.csv")
+df["diff_99"] = abs(df.cv_mode - df["cv at CPV > 0.99"])
+df["diff_80"] = abs(df.cv_mode - df["cv at CPV > 0.8"])
+df.groupby("training_size").mean()
