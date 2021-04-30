@@ -1,7 +1,7 @@
 from sklearn.cluster import KMeans, AgglomerativeClustering, MeanShift
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, \
     davies_bouldin_score
-from yellowbrick.cluster.elbow import kelbow_visualizer
+# from yellowbrick.cluster.elbow import kelbow_visualizer
 from scipy.spatial.distance import cdist
 import skfuzzy as fuzz
 
@@ -89,18 +89,19 @@ class Clustering:
         """Return elbow value. And create elbow plots for KMeans with
         <start_num_clusters> to <end_num_clusters>.
         """
-        elbow_model = kelbow_visualizer(
-            KMeans(n_clusters=self._num_clusters,
-                   random_state=self._random_state,
-                   n_init=self._n_iter),
-            self._train_data,
-            k=(start_num_clusters, end_num_clusters))
-        try:
-            elbow_k = int(elbow_model.elbow_value_)
-        except:
-            elbow_k = 0
+        raise NotImplementedError
+        # elbow_model = kelbow_visualizer(
+        #     KMeans(n_clusters=self._num_clusters,
+        #            random_state=self._random_state,
+        #            n_init=self._n_iter),
+        #     self._train_data,
+        #     k=(start_num_clusters, end_num_clusters))
+        # try:
+        #     elbow_k = int(elbow_model.elbow_value_)
+        # except:
+        #     elbow_k = 0
 
-        return elbow_k
+        # return elbow_k
 
     def evaluate_clustering(self):
         """Return Silhouette, Calinski-Harabasz and Davies Bouldin score.
@@ -116,6 +117,7 @@ class Clustering:
         #     dav_bou_score = davies_bouldin_score(self._train_data,
         #                                          self.algo.labels_)
         # except ValueError:
+        # Only Testing Data
         sil_score = silhouette_score(self._test_data,
                                      self.algo.labels_,
                                      metric='euclidean')
@@ -143,7 +145,7 @@ class Clustering:
                                  num_kept: int,
                                  num_cluster: int,
                                  model_goal: str) -> np.array:
-        """Returns list of cluster accuracies.
+        """Returns array of cluster model performances.
         """
         # Getting cluster counts
         cluster_freq = np.unique(cluster_prediction, return_counts=True)

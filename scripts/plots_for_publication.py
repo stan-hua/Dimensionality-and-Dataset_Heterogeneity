@@ -5,6 +5,7 @@ from matplotlib.lines import Line2D
 import seaborn as sns
 import pandas as pd
 from statsmodels.stats.weightstats import DescrStatsW
+from scipy.stats import mode
 
 # PATHS
 orig_data_dir = "/Users/Stanley/Desktop/Tyrrell Lab/ROP Project/" \
@@ -226,7 +227,7 @@ def plot_fig_3():
 
 # SUP. FIGURE 1: Random Seed on CV
 # HELPER FUNCTIONS
-def get_cvs(path: str, model_goal: str,
+def get_iterated_cvs(path: str, model_goal: str,
             num_pcs: int, num_iter: int,
             weighted: bool = False, method: str = "kmeans") -> int:
     """For <path>, use <num_pcs> number of Principal Components in calculating
@@ -243,27 +244,29 @@ def get_cvs(path: str, model_goal: str,
 
     cv_accum = []
     for i in range(num_iter):
-        cluster_model = Clustering(inputs.num_cluster, 100,
+        cluster_model = Clustering(inputs.num_cluster, 300,
                                    inputs.random_seed, method=method)
         cluster_model.fit(pca_model.pcs_train.loc[:, :num_pcs-1])
-        cluster_prediction = cluster_model.predict(
-            pca_model.pcs_test.loc[:, :num_pcs-1])
-        cluster_performances = cluster_model.get_cluster_performances(
-            inputs.df_test.copy(),
-            cluster_prediction,
-            num_pcs,
-            inputs.num_cluster,
-            model_goal=model_goal)
-
-        if weighted:
-            weighted_stats = DescrStatsW(cluster_performances,
-                                         weights=cluster_model.temp_cluster_sizes,
-                                         ddof=0)
-            cv_accum.append(weighted_stats.std / weighted_stats.mean)
-        else:
-            cv_accum.append(np.std(cluster_performances) /
-                            np.mean(cluster_performances))
-
+        cv_within_iter = []
+        for g in range(10):
+            cluster_prediction = cluster_model.predict(
+                pca_model.pcs_test.loc[:, :num_pcs-1])
+            cluster_performances = cluster_model.get_cluster_performances(
+                inputs.df_test.copy(),
+                cluster_prediction,
+                num_pcs,
+                inputs.num_cluster,
+                model_goal=model_goal)
+            if weighted:
+                weighted_stats = DescrStatsW(
+                    cluster_performances,
+                    weights=cluster_model.temp_cluster_sizes,
+                    ddof=0)
+                cv_within_iter.append(weighted_stats.std / weighted_stats.mean)
+            else:
+                cv_within_iter.append(np.std(cluster_performances) /
+                                      np.mean(cluster_performances))
+        cv_accum.append(mode(cv_within_iter, axis=None).mode[0])
     return cv_accum
 
 
@@ -283,18 +286,18 @@ def get_datasets_cvs(small: bool, weighted: bool = False) -> None:
         size = "smallest"
 
     # Get CV iterated with randomly chosen seed
-    cvs_bone = get_cvs(orig_data_dir+bone, "regression",
-                       num_pcs=9,
-                       num_iter=100,
-                       weighted=weighted)
-    cvs_cifar = get_cvs(orig_data_dir+cifar, "classification",
-                        num_pcs=46,
-                        num_iter=100,
-                        weighted=weighted)
-    cvs_psp = get_cvs(orig_data_dir+psp, "classification",
-                      num_pcs=43,
-                      num_iter=100,
-                      weighted=weighted)
+    cvs_bone = get_iterated_cvs(orig_data_dir+bone, "regression",
+                                num_pcs=9,
+                                num_iter=100,
+                                weighted=weighted)
+    cvs_cifar = get_iterated_cvs(orig_data_dir+cifar, "classification",
+                                 num_pcs=46,
+                                 num_iter=100,
+                                 weighted=weighted)
+    cvs_psp = get_iterated_cvs(orig_data_dir+psp, "classification",
+                               num_pcs=43,
+                               num_iter=100,
+                               weighted=weighted)
 
     df = pd.DataFrame()
     df["boneage"] = cvs_bone
@@ -424,3 +427,88 @@ def plot_sup_fig_2():
 
     plt.legend(handles=legend_elements, loc='best', shadow=True)
     plt.tight_layout()
+
+#%% Get CV (mode from 10 iterations) for each number of PCs
+def get_cv_against_pc(path: str, model_goal: str,
+            weighted: bool = False, method: str = "kmeans") -> int:
+    """For <path>, use <num_pcs> number of Principal Components in calculating
+    Coefficient of Variation. Iterate this <num_iter> times.
+
+    NOTE: Random Seed is randomly set, so running this function may return
+    differing values of CV.
+    """
+    # Get train/test set
+    inputs = Inputs([path], model_goal)
+    inputs.random_seed = None
+    inputs.get_df_split(0)
+    
+    # PCA
+    pca_model = get_pca_model(inputs)
+    max_pcs = pca_model.get_max_pc()
+    
+    cv_accum = []
+    for num_pcs in range(1, max_pcs):
+        cluster_model = Clustering(inputs.num_cluster, 300,
+                                   inputs.random_seed, method=method)
+        cluster_model.fit(pca_model.pcs_train.loc[:, :num_pcs-1])
+        cv_within_iter = []
+        for g in range(10):  # clustering iterated for one instance
+            cluster_prediction = cluster_model.predict(
+                pca_model.pcs_test.loc[:, :num_pcs-1])
+            cluster_performances = cluster_model.get_cluster_performances(
+                inputs.df_test.copy(),
+                cluster_prediction,
+                num_pcs,
+                inputs.num_cluster,
+                model_goal=model_goal)
+            if weighted:
+                weighted_stats = DescrStatsW(
+                    cluster_performances,
+                    weights=cluster_model.temp_cluster_sizes,
+                    ddof=0)
+                cv_within_iter.append(weighted_stats.std / weighted_stats.mean)
+            else:
+                cv_within_iter.append(np.std(cluster_performances) /
+                                      np.mean(cluster_performances))
+        cv_accum.append(mode(cv_within_iter, axis=None).mode[0])
+    return cv_accum
+
+
+if __name__ == "__main__":
+    small = False
+    if not small:  # for largest sample size
+        bone = "boneage/boneage_features_red_whole_all_fold_0.csv"
+        psp = "psp_plates/teeth_features_all_red_whole_fold_0.csv"
+        cifar = "cifar10/cifar10_features_12000_fold_0.csv"
+        size = "greatest"
+    else:
+        bone = "boneage/boneage_features_red_whole_300_fold_0.csv"
+        psp = "psp_plates/teeth_features_100_red_whole_fold_0.csv"
+        cifar = "cifar10/cifar10_features_400_fold_0.csv"
+        size = "smallest"
+
+    # Get CV iterated with randomly chosen seed
+    cv_performance = get_cv_against_pc(orig_data_dir+bone, "regression")
+    # cv_performance = get_cv_against_pc(orig_data_dir+cifar, "classification")
+    # cv_performance = get_cv_against_pc(orig_data_dir+psp, "classification")
+
+
+    new_title = bone.replace(".csv", "").replace("/", " || ")
+
+    # FIGURE: General plots [CV, Test Accuracy/RMSE, % Variance Explained]
+    plt.title(new_title)
+
+    # SUBPLOT: CV Accuracy vs. # of Principal Components
+    df_cv = pd.DataFrame({"num_features": list(range(len(cv_performance))),
+                          "cv": cv_performance})
+    idx = (df_cv.cv == mode(cv_performance).mode[0])
+
+    plt.xlabel('Number of Principal Components')
+    plt.ylim((min(0, min(cv_performance)), round(np.nan_to_num(
+        cv_performance).max(), 1) + 0.1))
+    plt.ylabel('Coefficient of Variation')
+    plt.scatter(df_cv["num_features"], df_cv["cv"],
+                color='black', alpha=.5, s=30)
+    plt.scatter(df_cv["num_features"].loc[idx], df_cv["cv"].loc[idx],
+                color="darkred", s=30, alpha=0.5, label="Mode")
+    plt.legend()

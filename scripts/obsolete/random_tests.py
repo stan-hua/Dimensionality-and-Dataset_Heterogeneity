@@ -5,8 +5,9 @@ from scipy.stats import ttest_ind_from_stats
 from scipy.stats import bartlett
 import cca_core
 
-#%% Similarity between Feature Vectors
-#FUNCTION: Cosine Similarity
+
+# %% Similarity between Feature Vectors
+# FUNCTION: Cosine Similarity
 def cosine_similarity(input1, input2):
     """Calculating the cosine similarity of two inputs.
     The return values lies in [-1, 1]. `-1` denotes two features are the most unlike,
@@ -22,43 +23,53 @@ def cosine_similarity(input1, input2):
 
 
 def check_train_similarity(df_train_data):
-    train_similarities=np.array([])
-    for i,j in itertools.combinations(df_train_data.index.tolist(), 2):
-        train_similarities=np.append(train_similarities, cosine_similarity(df_train_data.loc[i,:], df_train_data.loc[j,:]))
+    train_similarities = np.array([])
+    for i, j in itertools.combinations(df_train_data.index.tolist(), 2):
+        train_similarities = np.append(train_similarities, cosine_similarity(
+            df_train_data.loc[i, :], df_train_data.loc[j, :]))
     return train_similarities
 
 
 def check_test_similarity(df_test_data):
-    test_similarities=np.array([])
-    for i,j in itertools.combinations(df_test_data.index.tolist(), 2):
-        test_similarities=np.append(test_similarities, cosine_similarity(df_test_data.loc[i,:], df_test_data.loc[j,:]))
+    test_similarities = np.array([])
+    for i, j in itertools.combinations(df_test_data.index.tolist(), 2):
+        test_similarities = np.append(test_similarities,
+                                      cosine_similarity(df_test_data.loc[i, :],
+                                                        df_test_data.loc[j, :]))
     return test_similarities
 
 
 def check_train_test_similarity(df_train_data, df_test_data, n_iter=100):
-    train_test_similarities=np.array([])
+    train_test_similarities = np.array([])
     for i in range(n_iter):
-        train_idx=random.choice(df_train_data.index.tolist())
-        test_idx=random.choice(df_test_data.index.tolist())
-        train_test_similarities=np.append(train_test_similarities,
-                                    cosine_similarity(df_train_data.loc[train_idx,:], df_test_data.loc[test_idx,:]))
+        train_idx = random.choice(df_train_data.index.tolist())
+        test_idx = random.choice(df_test_data.index.tolist())
+        train_test_similarities = np.append(train_test_similarities,
+                                            cosine_similarity(
+                                                df_train_data.loc[train_idx, :],
+                                                df_test_data.loc[test_idx, :]))
     return train_test_similarities
 
 
-#%%FUNCTION: Return Mean Squared Error between Original Features and PCA-Transformed Features for Each Observation
-def compare_pca_inverse(df_train_data, df_test_data, pca_model: PCA, num_features: int, split=False):
-    if split==False:
-        df_untrans=pd.concat([df_train_data, df_test_data])
-        pca_transformed_df=pd.concat([pca_train, pca_test])
-        df_inverse_trans=pca_model.train_scaler.inverse_transform(pca_model.inverse_transform(pca_transformed_df))
-        df_diff=pd.DataFrame(df_untrans.to_numpy()-df_inverse_trans)
+# %%FUNCTION: Return Mean Squared Error between Original Features and PCA-Transformed Features for Each Observation
+def compare_pca_inverse(df_train_data, df_test_data, pca_model: PCA,
+                        num_features: int, split=False):
+    if split == False:
+        df_untrans = pd.concat([df_train_data, df_test_data])
+        pca_transformed_df = pd.concat([pca_train, pca_test])
+        df_inverse_trans = pca_model.train_scaler.inverse_transform(
+            pca_model.inverse_transform(pca_transformed_df))
+        df_diff = pd.DataFrame(df_untrans.to_numpy() - df_inverse_trans)
         return df_diff.apply(abs).mean(axis=1)
     else:
-        df_train_inverse_trans=get_pca_inverse(pca_model, pca_model.pcs_train, num_features)
-        df_test_inverse_trans=get_pca_inverse(pca_model, pca_model.pcs_test, num_features)
-        df_diff_train=pd.DataFrame(df_train_data-df_train_inverse_trans)
-        df_diff_test=pd.DataFrame(df_test_data-df_test_inverse_trans)
-        return (df_diff_train**2).mean(axis=1), (df_diff_test**2).mean(axis=1)
+        df_train_inverse_trans = get_pca_inverse(pca_model, pca_model.pcs_train,
+                                                 num_features)
+        df_test_inverse_trans = get_pca_inverse(pca_model, pca_model.pcs_test,
+                                                num_features)
+        df_diff_train = pd.DataFrame(df_train_data - df_train_inverse_trans)
+        df_diff_test = pd.DataFrame(df_test_data - df_test_inverse_trans)
+        return (df_diff_train ** 2).mean(axis=1), (df_diff_test ** 2).mean(
+            axis=1)
 
 
 def get_pca_inverse(pca_model: PCA, df_transformed: pd.DataFrame,
@@ -84,7 +95,7 @@ def get_pca_inverse(pca_model: PCA, df_transformed: pd.DataFrame,
     sparse_df = pd.DataFrame(0.0, index=np.arange(len(df_transformed)),
                              columns=range(num_features,
                                            df_transformed.shape[1]))
-    pcs_filled = pd.concat([df_transformed.loc[:,:num_features-1],
+    pcs_filled = pd.concat([df_transformed.loc[:, :num_features - 1],
                             sparse_df], axis=1)
 
     return pd.DataFrame(pca_model.train_scaler.inverse_transform(
@@ -93,8 +104,8 @@ def get_pca_inverse(pca_model: PCA, df_transformed: pd.DataFrame,
 
 def get_reconstruction_errors(pca_model: PCA,
                               inputs: Inputs,
-                              train_or_test: str="train",
-                              num_features: int=10) -> pd.DataFrame:
+                              train_or_test: str = "train",
+                              num_features: int = 10) -> pd.DataFrame:
     """
     Parameters
     ----------
@@ -127,8 +138,8 @@ def get_reconstruction_errors(pca_model: PCA,
 
 
 def variances_of_the_reconstruction_error(pca: PCA,
-                                         inputs: Inputs,
-                                         train_or_test: str="train") -> List:
+                                          inputs: Inputs,
+                                          train_or_test: str = "train") -> List:
     """Return list of mean variances of the reconstruction errors.
 
     Precondition:
@@ -138,16 +149,15 @@ def variances_of_the_reconstruction_error(pca: PCA,
 
     for num_features in range(0, pca_model._max_pcs):
         reconstruction_errors = get_reconstruction_errors(pca,
-                                         inputs,
-                                         train_or_test,
-                                         num_features)
+                                                          inputs,
+                                                          train_or_test,
+                                                          num_features)
         vre.append(np.mean(reconstruction_errors.var()))
 
     return vre
 
 
-
-#%% RUN Variance of the Reconstruction Error
+# %% RUN Variance of the Reconstruction Error
 def run_vre():
     col_indices = [i for i in range(512)]
     df = pd.read_csv(paths[12], index_col=False)
@@ -156,21 +166,21 @@ def run_vre():
     except:
         pass
 
-    #GET TRAINING DATA & VAL & TEST DATA
-    df_train = df[df.phase=="train"]
-    df_test = df[df.phase=="val"]
+    # GET TRAINING DATA & VAL & TEST DATA
+    df_train = df[df.phase == "train"]
+    df_test = df[df.phase == "val"]
 
-    df_train_data = df_train.loc[:,col_indices]
-    df_test_data = df_test.loc[:,col_indices]
+    df_train_data = df_train.loc[:, col_indices]
+    df_test_data = df_test.loc[:, col_indices]
 
-    #Get, Plot and Save results
-    pca_model=pca()
-    pca_model.compute(df_train_data,df_test_data)
+    # Get, Plot and Save results
+    pca_model = pca()
+    pca_model.compute(df_train_data, df_test_data)
 
     train_var_ = variances_of_the_reconstruction_error(pca_model,
-                                                      pca_model.pcs_train,
-                                                      df_train_data,
-                                                      (1, 100))
+                                                       pca_model.pcs_train,
+                                                       df_train_data,
+                                                       (1, 100))
 
     test_var_ = variances_of_the_reconstruction_error(pca_model,
                                                       pca_model.pcs_test,
@@ -181,152 +191,191 @@ def run_vre():
 
     plt.plot(list(range(1, 100)), test_var_)
 
-#%% HELPER FUNCTIONS: Get vector component of observation on Principal Component
+
+# %% HELPER FUNCTIONS: Get vector component of observation on Principal Component
 def get_vector_component(base_vector, some_vector):
-    return ((base_vector.dot(some_vector))/(base_vector.dot(base_vector)))*base_vector
+    return ((base_vector.dot(some_vector)) / (
+        base_vector.dot(base_vector))) * base_vector
 
 
 # WRAPPER FUNCTION: Apply get_vector_component() on PCA-transformed dataframe
 def get_df_vector_comp(x, l):
     global pca_model
-    return get_vector_component(pca_model.train_scaler.inverse_transform(pca_model.components_[l]), x)        #NOTE: Inverse Transformation to de-normalize Principal Component Vectors
+    return get_vector_component(
+        pca_model.train_scaler.inverse_transform(pca_model.components_[l]),
+        x)  # NOTE: Inverse Transformation to de-normalize Principal Component Vectors
 
 
-#FUNCTION: Compare Vector Component (of Training/Testing Observations) on Principal Components
+# FUNCTION: Compare Vector Component (of Training/Testing Observations) on Principal Components
 def compare_vcomp_pcs(num_pc=10, display=False):
     global df_train_data, df_test_data, pca_model
 
-    #PCA: Compare Vector Components of PCs between Training and Test Data
-    norm_vcomp_train=[]
-    norm_vcomp_test=[]
-    #Compare for top num_pc components
+    # PCA: Compare Vector Components of PCs between Training and Test Data
+    norm_vcomp_train = []
+    norm_vcomp_test = []
+    # Compare for top num_pc components
     for l in range(num_pc):
         # sum_vcomp_train.append(df_train_data.apply(lambda x: get_df_vector_comp(x, l), axis=1).abs().sum())
         # sum_vcomp_test.append(df_test_data.apply(lambda x: get_df_vector_comp(x, l), axis=1).abs().sum())
-        norm_vcomp_train.append(np.median(np.linalg.norm(df_train_data.apply(lambda x: get_df_vector_comp(x, l), axis=1))))
-        norm_vcomp_test.append(np.median(np.linalg.norm(df_test_data.apply(lambda x: get_df_vector_comp(x, l), axis=1))))
-    if display!=False:
+        norm_vcomp_train.append(np.median(np.linalg.norm(
+            df_train_data.apply(lambda x: get_df_vector_comp(x, l), axis=1))))
+        norm_vcomp_test.append(np.median(np.linalg.norm(
+            df_test_data.apply(lambda x: get_df_vector_comp(x, l), axis=1))))
+    if display != False:
         print(cosine_similarity(norm_vcomp_train, norm_vcomp_test))
 
 
-#%% FUNCTION: Get Cosine Similarity Within and Between Clusters
+# %% FUNCTION: Get Cosine Similarity Within and Between Clusters
 def compare_cluster_similarity():
     global pca_model, num_cluster, dataset_num, chosen_features
-    include_elbow=False
-    n_iter=100
-    random_state=None
-    df_data=df_test.copy()
+    include_elbow = False
+    n_iter = 100
+    random_state = None
+    df_data = df_test.copy()
 
-    #Get train and test data
-    cluster_train=pca_model.pcs_train.loc[:,:chosen_features-1]
-    cluster_val=pca_model.pcs_test.loc[:,:chosen_features-1]
+    # Get train and test data
+    cluster_train = pca_model.pcs_train.loc[:, :chosen_features - 1]
+    cluster_val = pca_model.pcs_test.loc[:, :chosen_features - 1]
 
-    #Fit Training, Predict Cluster
-    cluster_prediction,cluster_distances,metrics=cluster_kmeans(cluster_train,
-                                                                 cluster_val,
-                                                                 num_clusters=num_cluster,
-                                                                 n_iter=n_iter,
-                                                                 r_state=random_state,
-                                                                 include_elbow=include_elbow)
-    #Getting cluster sizes
-    cluster_indiv_num=pd.Series(cluster_prediction).value_counts().index.to_list()
-    cluster_sizes=pd.Series(cluster_prediction).value_counts().values
+    # Fit Training, Predict Cluster
+    cluster_prediction, cluster_distances, metrics = cluster_kmeans(
+        cluster_train,
+        cluster_val,
+        num_clusters=num_cluster,
+        n_iter=n_iter,
+        r_state=random_state,
+        include_elbow=include_elbow)
+    # Getting cluster sizes
+    cluster_indiv_num = pd.Series(
+        cluster_prediction).value_counts().index.to_list()
+    cluster_sizes = pd.Series(cluster_prediction).value_counts().values
 
-    sorted_cluster_sizes=pd.DataFrame(cluster_sizes, index=cluster_indiv_num).sort_index().values.flatten()
+    sorted_cluster_sizes = pd.DataFrame(cluster_sizes,
+                                        index=cluster_indiv_num).sort_index().values.flatten()
 
-    #Get cluster test accuracies
-    df_data["cluster"]=cluster_prediction
-    if model_goal=="regression":
-        df_data["prediction_accuracy"]=df_data.apply(lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
+    # Get cluster test accuracies
+    df_data["cluster"] = cluster_prediction
+    if model_goal == "regression":
+        df_data["prediction_accuracy"] = df_data.apply(
+            lambda x: np.sqrt(((x.predictions - x.labels) ** 2)), axis=1)
     else:
-        df_data["prediction_accuracy"]=(df_data.predictions==df_data.labels)
-    df_cluster_accuracies=df_data.groupby(by=["cluster"]).mean()["prediction_accuracy"]
+        df_data["prediction_accuracy"] = (df_data.predictions == df_data.labels)
+    df_cluster_accuracies = df_data.groupby(by=["cluster"]).mean()[
+        "prediction_accuracy"]
 
     print(df_cluster_accuracies)
     for i in range(4):
-        cluster_num=i
+        cluster_num = i
         print("Cluster", i)
-        cluster_idx=df_data[df_data.cluster==cluster_num].index.tolist()
-        sim_test_transformed=check_test_similarity(pca_model.pcs_test.loc[:,:chosen_features-1].loc[np.array(cluster_idx)-len(pca_model.pcs_train),:])
-        sim_test_untransformed=check_test_similarity(df_data[df_data.cluster==cluster_num].loc[:, col_indices])
+        cluster_idx = df_data[df_data.cluster == cluster_num].index.tolist()
+        sim_test_transformed = check_test_similarity(
+            pca_model.pcs_test.loc[:, :chosen_features - 1].loc[
+            np.array(cluster_idx) - len(pca_model.pcs_train), :])
+        sim_test_untransformed = check_test_similarity(
+            df_data[df_data.cluster == cluster_num].loc[:, col_indices])
 
-        print("Within Test Cluster Similarity [Original]:",sim_test_untransformed.mean(), sim_test_untransformed.std())
-        print("Within Test Cluster Similarity [PCA-transformed]:",sim_test_transformed.mean(), sim_test_transformed.std())
+        print("Within Test Cluster Similarity [Original]:",
+              sim_test_untransformed.mean(), sim_test_untransformed.std())
+        print("Within Test Cluster Similarity [PCA-transformed]:",
+              sim_test_transformed.mean(), sim_test_transformed.std())
 
-        sim_train_test_transformed=check_train_test_similarity(pca_model.pcs_train.loc[:,:chosen_features-1],
-                                    pca_model.pcs_test.loc[:,:chosen_features-1].loc[np.array(cluster_idx)-len(pca_model.pcs_train),:],
-                                    n_iter=1000)
-        sim_train_test_untransformed=check_train_test_similarity(df_train_data.loc[:, col_indices],
-                                                                 df_test_data.loc[cluster_idx, col_indices],
-                                                                 n_iter=1000)
+        sim_train_test_transformed = check_train_test_similarity(
+            pca_model.pcs_train.loc[:, :chosen_features - 1],
+            pca_model.pcs_test.loc[:, :chosen_features - 1].loc[
+            np.array(cluster_idx) - len(pca_model.pcs_train), :],
+            n_iter=1000)
+        sim_train_test_untransformed = check_train_test_similarity(
+            df_train_data.loc[:, col_indices],
+            df_test_data.loc[cluster_idx, col_indices],
+            n_iter=1000)
 
-        print("Between Train-Test Similarity [Original]:",sim_train_test_untransformed.mean(), sim_train_test_untransformed.std())
-        print("Between Train-Test Similarity [PCA-transformed]:",sim_train_test_transformed.mean(), sim_train_test_transformed.std())
+        print("Between Train-Test Similarity [Original]:",
+              sim_train_test_untransformed.mean(),
+              sim_train_test_untransformed.std())
+        print("Between Train-Test Similarity [PCA-transformed]:",
+              sim_train_test_transformed.mean(),
+              sim_train_test_transformed.std())
+
 
 # NOTE
-        #[Original]
-            #cluster prediction based on chosen PCA-transformed features
-                #but cosine similarity used on original 512-dimensional features
+# [Original]
+# cluster prediction based on chosen PCA-transformed features
+# but cosine similarity used on original 512-dimensional features
 
-#%% Checking Stability of First PC / Singular Vector
+# %% Checking Stability of First PC / Singular Vector
 def check_pc_stability(pc):
-    pc_accum=[]
+    pc_accum = []
     for i in range(5):
-        pca_model=pca()
-        pca_model.compute(df_train_data, df_test_data, whole=False, with_scaler=True, with_std=False)
-        pc_accum.append(pca_model.pcs_train.loc[:,pc].to_numpy())
+        pca_model = pca()
+        pca_model.compute(df_train_data, df_test_data, whole=False,
+                          with_scaler=True, with_std=False)
+        pc_accum.append(pca_model.pcs_train.loc[:, pc].to_numpy())
         del pca_model
     print(check_train_similarity(pd.DataFrame(pc_accum)))
 
 
-#%% TEST: Significant Difference between PCA Inverse Transforms (with sparsely filled in PCs) and Original Features
+# %% TEST: Significant Difference between PCA Inverse Transforms (with sparsely filled in PCs) and Original Features
 def test_inverse_difference():
-    col_indices=[str(i) for i in range(512)]
-    num_cluster=4
-    dataset_num=10
-    chosen_features=5
+    col_indices = [str(i) for i in range(512)]
+    num_cluster = 4
+    dataset_num = 10
+    chosen_features = 5
     for dataset_num in range(16):
         print(paths[dataset_num])
 
-        df=pd.read_csv(paths[dataset_num], index_col=False)
+        df = pd.read_csv(paths[dataset_num], index_col=False)
         try:
-            df=df.drop("Unnamed: 0", axis=1)
+            df = df.drop("Unnamed: 0", axis=1)
         except:
             pass
 
-        #GET TRAINING DATA & VAL & TEST DATA
-        df_train=df[df.phase=="train"]
-        df_test=df[df.phase=="val"]
+        # GET TRAINING DATA & VAL & TEST DATA
+        df_train = df[df.phase == "train"]
+        df_test = df[df.phase == "val"]
 
-        df_train_data=df_train.loc[:,col_indices]
-        df_test_data=df_test.loc[:,col_indices]
+        df_train_data = df_train.loc[:, col_indices]
+        df_test_data = df_test.loc[:, col_indices]
 
-        #Get, Plot and Save results
-        pca_model=pca()
-        pca_model.compute(df_train_data,df_test_data)
+        # Get, Plot and Save results
+        pca_model = pca()
+        pca_model.compute(df_train_data, df_test_data)
 
-        #Assessing PCA-Inverse
+        # Assessing PCA-Inverse
         def ttest_inverse_diff(num_features):
-            inverse_diffs=compare_pca_inverse(df_train_data=df_train_data, df_test_data=df_test_data, pca_model=pca_model, num_features=num_features, split=True)
+            inverse_diffs = compare_pca_inverse(df_train_data=df_train_data,
+                                                df_test_data=df_test_data,
+                                                pca_model=pca_model,
+                                                num_features=num_features,
+                                                split=True)
             if bartlett(inverse_diffs[0], inverse_diffs[1]).pvalue < 0.05:
-                equal_var=False
+                equal_var = False
             else:
-                equal_var=True
-            return ttest_ind_from_stats(inverse_diffs[0].mean(), inverse_diffs[0].std(), len(inverse_diffs[0]),
-                                             inverse_diffs[1].mean(), inverse_diffs[1].std(), len(inverse_diffs[1]),
-                                             equal_var=equal_var)
+                equal_var = True
+            return ttest_ind_from_stats(inverse_diffs[0].mean(),
+                                        inverse_diffs[0].std(),
+                                        len(inverse_diffs[0]),
+                                        inverse_diffs[1].mean(),
+                                        inverse_diffs[1].std(),
+                                        len(inverse_diffs[1]),
+                                        equal_var=equal_var)
 
-        p_value=[]
-        t_statistic=[]
-        effect_sizes=[]
-        for num_features in range(1,50,1):
-            test=ttest_inverse_diff(num_features)
+        p_value = []
+        t_statistic = []
+        effect_sizes = []
+        for num_features in range(1, 50, 1):
+            test = ttest_inverse_diff(num_features)
             print("Dimensions: %d, p-value: %f" % (num_features, test.pvalue))
             print("T-Statistic: %f" % (test.statistic))
 
-            inverse_diffs=compare_pca_inverse(df_train_data=df_train_data, df_test_data=df_test_data, pca_model=pca_model, num_features=num_features, split=True)
-            pooled_std=math.sqrt((inverse_diffs[0].std()**2+inverse_diffs[1].std()**2)/2)
-            effect_size=(inverse_diffs[0].mean()-inverse_diffs[1].mean())/pooled_std
+            inverse_diffs = compare_pca_inverse(df_train_data=df_train_data,
+                                                df_test_data=df_test_data,
+                                                pca_model=pca_model,
+                                                num_features=num_features,
+                                                split=True)
+            pooled_std = math.sqrt(
+                (inverse_diffs[0].std() ** 2 + inverse_diffs[1].std() ** 2) / 2)
+            effect_size = (inverse_diffs[0].mean() - inverse_diffs[
+                1].mean()) / pooled_std
             print("Effect Size: %f" % (effect_size))
 
             p_value.append(test.pvalue)
@@ -334,7 +383,7 @@ def test_inverse_difference():
             effect_sizes.append(effect_size)
 
         fig = plt.figure()
-        fig.suptitle("%s | Dataset %d" % (dataset_used,dataset_num))
+        fig.suptitle("%s | Dataset %d" % (dataset_used, dataset_num))
         ax1 = fig.add_subplot(221)
         ax2 = fig.add_subplot(222)
         ax3 = fig.add_subplot(223)
@@ -351,13 +400,17 @@ def test_inverse_difference():
         ax3.plot(effect_sizes)
         ax3.set_ylabel("Effect Size")
         plt.show()
-        del pca_model,df_train_data, df_test_data
+        del pca_model, df_train_data, df_test_data
 
-    pooled_var=math.sqrt(((len(inverse_diffs[0])-1)*inverse_diffs[0].std()**2)+((len(inverse_diffs[1])-1)*inverse_diffs[1].std()**2)
-                         /(len(inverse_diffs[0])+len(inverse_diffs[1])-2))
-    pooled_std=math.sqrt((inverse_diffs[0].std()**2+inverse_diffs[1].std()**2)/2)
+    pooled_var = math.sqrt(
+        ((len(inverse_diffs[0]) - 1) * inverse_diffs[0].std() ** 2) + (
+                    (len(inverse_diffs[1]) - 1) * inverse_diffs[1].std() ** 2)
+        / (len(inverse_diffs[0]) + len(inverse_diffs[1]) - 2))
+    pooled_std = math.sqrt(
+        (inverse_diffs[0].std() ** 2 + inverse_diffs[1].std() ** 2) / 2)
 
-#%% PROJECTION PURSUIT: Robust PCA
+
+# %% PROJECTION PURSUIT: Robust PCA
 
 # from direpack import ppdire, capi, dicomo
 #
@@ -366,10 +419,10 @@ def test_inverse_difference():
 #     pca.fit(df_train_data,ndir=200)
 #     return pca.x_loadings_
 
-#%% Plot Top 2 Principal Components
+# %% Plot Top 2 Principal Components
 
 
-#%%
+# %%
 if __name__ == "__main__":
     inputs = Inputs(paths)
 
@@ -412,7 +465,7 @@ if __name__ == "__main__":
                marker="o", c=inputs.df_train.predictions,
                colormap="Spectral", alpha=0.2, colorbar=False, grid=False,
                ax=ax1,
-               ylabel = "Training Set")
+               ylabel="Training Set")
         a.loc[(inputs.df_train.labels != inputs.df_train.predictions
                ).values].plot(x=0, y=1,
                               kind="scatter", color="red", ax=ax1,
@@ -420,23 +473,21 @@ if __name__ == "__main__":
 
         # Testing Set
         b.plot(x=0, y=1, kind="scatter",
-                     marker="o", c=inputs.df_test.labels,
-                     colormap="BrBG", alpha=0.2, colorbar=False, grid=False,
-                     ax=ax2)
+               marker="o", c=inputs.df_test.labels,
+               colormap="BrBG", alpha=0.2, colorbar=False, grid=False,
+               ax=ax2)
         b.plot(x=0, y=1, kind="scatter",
-                     marker="o", c=inputs.df_test.predictions,
-                     colormap="BrBG", alpha=0.2, colorbar=False, grid=False,
-                     ax=ax2,
-                     ylabel = "Testing Set")
+               marker="o", c=inputs.df_test.predictions,
+               colormap="BrBG", alpha=0.2, colorbar=False, grid=False,
+               ax=ax2,
+               ylabel="Testing Set")
         b.loc[(inputs.df_test.labels != inputs.df_test.predictions
                ).values].plot(x=0, y=1, kind="scatter",
                               color="red", ax=ax2, grid=False, alpha=0.8)
 
-        fig.suptitle(paths[dataset_num].replace(absolute_dir+data_dir,
+        fig.suptitle(paths[dataset_num].replace(absolute_dir + data_dir,
                                                 "").replace(".csv",
                                                             "").replace("\\",
                                                                         "||"))
         plt.tight_layout()
         plt.show()
-
-

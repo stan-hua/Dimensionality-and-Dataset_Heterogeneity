@@ -62,8 +62,8 @@ class Inputs:
         self.num_cluster = 4
 
         # INPUT: Choose which datasets to iterate
-        which_datasets = int(input("One or All datasets ** 1: One, 0: All\n"))
-
+        # which_datasets = int(input("One or All datasets ** 1: One, 0: All\n"))
+        which_datasets = 0
         if which_datasets == 0:
             self.which_datasets = list(range(len(paths)))
         else:
@@ -74,16 +74,17 @@ class Inputs:
         self.elbow_bool = bool(0)
 
         # INPUT: Use Test Set Only? (So only test set used)
-        self.exclude_train = int(input("Only Test Set **1: Yes, 0: No\n"))
-
+        # self.exclude_train = int(input("Only Test Set **1: Yes, 0: No\n"))
+        self.exclude_train = 0
         # INPUT: Choose Features
         self.chosen_features = list(range(1, 71))
 
         # INPUT: Save Results
-        self.save_bool = input("Save Results? (Y/N) ")
-
+        # self.save_bool = input("Save Results? (Y/N) ")
+        self.save_bool = "N"
         # INPUT: Random Seed
-        random_seed_bool = input("Random Seed? (Y/N) ")
+        # random_seed_bool = input("Random Seed? (Y/N) ")
+        random_seed_bool = "Y"
         if random_seed_bool == "Y":
             self.random_seed = None
         else:
