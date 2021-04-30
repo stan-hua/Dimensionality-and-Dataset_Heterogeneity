@@ -29,7 +29,7 @@ Here, we answer the following questions:
 
 Yes. However, this varies by sample size and dataset.
 
-![alt text](https://github.com/stan-hua/pca-clustering/blob/main/results/graphs/presentation_graphs/cv%20vs.%20num_pcs%20(PSP%20300%2C%201).png)
+![alt text](https://github.com/stan-hua/pca-clustering/blob/main/results/graphs/presentation_graphs/cv%20vs.%20num_pcs%20(PSP%20Plates).png)
 
 
 #### <ins>How many principal components do we include?</ins>
