@@ -8,6 +8,6 @@
     └── scripts
         ├── min_mode_cv.py      # IMPORTANT: Stand-alone code to perform Minimum Mode CV
         ├── main.py             # Used to perform iterative clustering for experiments
-        ├── pca.py              # Subclass of sklearn PCA
-        └── clustering.py       # Clustering class. Contains sklearn KMeans and skfuzz Fuzzy CMeans
+        ├── pca.py              # Object Oriented Programming. Subclass of sklearn PCA.
+        └── clustering.py       # Object Oriented Programming. Clustering class. Contains sklearn KMeans and skfuzz Fuzzy CMeans
         └── svcca.py            # Method for comparing NN representations
